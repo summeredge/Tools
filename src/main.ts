@@ -9,9 +9,10 @@ import {
   textStats,
   uniqueLines,
 } from "./logic";
+import { fetchSafety, SafetyError, type SafetyResult } from "./safety";
 import { fetchWeather, weatherCodeText, weatherIcon, WeatherError, type WeatherResult } from "./weather";
 
-type ToolId = "weather" | "markdown" | "text" | "diff";
+type ToolId = "weather" | "safety" | "markdown" | "text" | "diff";
 type HomeMode = "all" | "favorites" | "recent";
 type Theme = "system" | "light" | "dark";
 
@@ -19,6 +20,7 @@ type Tool = { id: ToolId; name: string; description: string; category: string; m
 
 const tools: Tool[] = [
   { id: "weather", name: "天气查询", description: "查询城市当前天气与未来 5 日预报", category: "外部数据", mark: "☁", keywords: ["天气", "温度", "预报", "城市"] },
+  { id: "safety", name: "化学品安全信息", description: "查询 PubChem 安全摘要与官方数据库链接", category: "外部数据", mark: "SDS", keywords: ["化学品", "SDS", "MSDS", "CAS", "安全", "GHS"] },
   { id: "markdown", name: "Markdown", description: "边写边预览，安全净化并下载草稿", category: "文档", mark: "MD", keywords: ["文档", "预览", "表格", "代码"] },
   { id: "text", name: "文本处理", description: "统计、清理、排序、去重与大小写转换", category: "文本", mark: "Aa", keywords: ["字符", "行", "空白", "排序"] },
   { id: "diff", name: "文本对比", description: "逐行查看新增、删除与未变化内容", category: "文本", mark: "Δ", keywords: ["差异", "比较", "新增", "删除"] },
@@ -132,7 +134,7 @@ function renderHome(): string {
   const modeLabel = state.homeMode === "favorites" ? "我的收藏" : state.homeMode === "recent" ? "最近使用" : "全部工具";
   return `<section class="home-view">
     <div class="hero"><div><p class="eyebrow">DAILY WORKBENCH / 01</p><h1>把每天会用到的<br><span>小工具放在一起。</span></h1><p class="hero-copy">一个面向小团队的通用工具箱。无需登录，计算与文本处理默认在当前浏览器完成。</p></div><div class="hero-signal"><span class="signal-ring"></span><div><strong>本地优先</strong><small>Local-first utilities</small></div></div></div>
-    <div class="privacy-banner"><span class="privacy-icon">⌁</span><div><strong>隐私边界清晰</strong><p>输入默认仅在当前浏览器处理；天气查询会向天气服务发送所搜索的城市。本站不含账号、同步、埋点或公司内部资料。</p></div></div>
+    <div class="privacy-banner"><span class="privacy-icon">⌁</span><div><strong>隐私边界清晰</strong><p>本地工具输入默认仅在当前浏览器处理；天气和化学品安全查询会向对应公开数据服务发送搜索内容。本站不含账号、同步、埋点或公司内部资料。</p></div></div>
     <div class="home-toolbar"><label class="search-box"><span>⌕</span><input id="tool-search" type="search" value="${escapeHtml(state.query)}" placeholder="搜索工具名称或关键词…" autocomplete="off"><kbd>/</kbd></label><div class="category-chips" aria-label="工具分类">${categories.map((category) => `<button class="chip ${state.category === category ? "active" : ""}" data-category="${escapeHtml(category)}">${escapeHtml(category)}</button>`).join("")}</div></div>
     <div class="section-heading"><div><p class="eyebrow">TOOL INDEX</p><h2>${modeLabel}</h2></div><span class="result-count">${filteredTools().length} / ${tools.length}</span></div>
     <div class="tool-grid" id="tool-grid">${renderToolCards()}</div>
@@ -146,6 +148,7 @@ function renderToolShell(tool: Tool): string {
 function renderToolContent(id: ToolId): string {
   switch (id) {
     case "weather": return `<div class="weather-tool"><div class="weather-search"><label for="weather-city">城市</label><div class="calc-input-row"><input id="weather-city" type="search" value="${escapeHtml(storage.read<string>("workbench:weather-city", ""))}" placeholder="例如：上海、北京" autocomplete="off"><button class="button primary" id="weather-search-button">查询天气</button></div><p class="hint">默认摄氏度，不强制获取浏览器定位。数据来自 <a href="https://www.nmc.cn/publish/forecast.html" target="_blank" rel="noreferrer">中央气象台（中国气象局）↗</a>。</p></div><div id="weather-status" class="feedback" aria-live="polite">请输入城市开始查询。</div><div id="weather-result"></div></div>`;
+    case "safety": return `<div class="safety-tool"><div class="safety-search"><label for="safety-query">化学品名称或 CAS 号</label><div class="calc-input-row"><input id="safety-query" type="search" value="${escapeHtml(storage.read<string>("workbench:safety-query", ""))}" placeholder="例如：ethanol、64-17-5" autocomplete="off"><button class="button primary" id="safety-search-button">查询安全信息</button></div><p class="hint">优先使用 CAS 号或英文名称。数据来自 <a href="https://pubchem.ncbi.nlm.nih.gov/" target="_blank" rel="noreferrer">PubChem</a>。结果是化学品安全摘要，不替代具体产品的最新版供应商 SDS。</p></div><div id="safety-status" class="feedback" aria-live="polite">请输入化学品名称或 CAS 号。</div><div id="safety-result"></div></div>`;
     case "markdown": return `<div class="markdown-tool"><div class="markdown-actions"><span class="hint">草稿仅自动保存到当前浏览器。</span><div><button class="button secondary" id="markdown-copy">复制 Markdown</button><button class="button secondary" id="markdown-copy-html">复制渲染结果</button><button class="button primary" id="markdown-download">下载 .md</button></div></div><div class="markdown-tabs"><button class="active" data-md-tab="edit">编辑</button><button data-md-tab="preview">预览</button></div><div class="markdown-grid"><label class="markdown-editor" data-md-pane="edit"><span class="sr-only">Markdown 编辑器</span><textarea id="markdown-input" spellcheck="false" placeholder="# 今日记录\n\n- 一个清单\n- \`Ctrl + Enter\` 之外也可以直接预览"></textarea></label><article class="markdown-preview" data-md-pane="preview" id="markdown-preview" aria-label="Markdown 预览"></article></div><div class="feedback" id="markdown-feedback" aria-live="polite"></div></div>`;
     case "text": return `<div class="text-tool"><div class="text-actions"><div class="stats" id="text-stats">字符 0 · 字数 0 · 行数 0</div><div class="button-group"><button class="button secondary" data-text-action="upper">大写</button><button class="button secondary" data-text-action="lower">小写</button><button class="button secondary" data-text-action="trim">去首尾空白</button><button class="button secondary" data-text-action="collapse">去多余空白</button><button class="button secondary" data-text-action="sort">行排序</button><button class="button secondary" data-text-action="unique">行去重</button><button class="button primary" data-text-copy>复制</button><button class="button danger" data-text-clear>清空</button></div></div><textarea id="text-input" class="large-textarea" placeholder="在这里输入或粘贴文本…"></textarea><div class="feedback" id="text-feedback" aria-live="polite"></div></div>`;
     case "diff": return `<div class="diff-tool"><div class="split-actions"><span class="hint">长文本会先显示处理状态，比较全程在浏览器内完成。</span><div><button class="button primary" id="diff-run">开始比较</button><button class="button secondary" id="diff-clear">清空</button></div></div><div class="diff-input-grid"><label><span>原文本</span><textarea id="diff-left" spellcheck="false" placeholder="原始内容…"></textarea></label><label><span>新文本</span><textarea id="diff-right" spellcheck="false" placeholder="修改后的内容…"></textarea></label></div><div id="diff-status" class="feedback" aria-live="polite"></div><div id="diff-output" class="diff-output"></div></div>`;
@@ -156,6 +159,16 @@ function renderWeatherResult(result: WeatherResult, fahrenheit = false): string 
   const convert = (value: number) => fahrenheit ? value * 9 / 5 + 32 : value;
   const unit = fahrenheit ? "°F" : "°C";
   return `<div class="weather-card"><div class="weather-current"><div><p class="eyebrow">CURRENT / ${escapeHtml(result.timezone)}</p><h2>${escapeHtml(result.city)} <small>${escapeHtml(result.country)}</small></h2><div class="weather-temp">${formatNumber(convert(result.temperature))}${unit}</div><p>${weatherCodeText(result.condition)} · 体感 ${formatNumber(convert(result.apparent))}${unit}</p></div><div class="weather-big-icon">${weatherIcon(result.condition)}</div></div><div class="weather-metrics"><span><strong>${formatNumber(result.humidity)}%</strong><small>相对湿度</small></span><span><strong>${formatNumber(result.wind)} km/h</strong><small>风速</small></span><label class="unit-toggle">温度单位<select id="weather-unit"><option value="c" ${!fahrenheit ? "selected" : ""}>摄氏度</option><option value="f" ${fahrenheit ? "selected" : ""}>华氏度</option></select></label></div><div class="forecast-grid">${result.days.map((day) => `<div class="forecast-day"><strong>${escapeHtml(new Date(`${day.date}T12:00:00`).toLocaleDateString("zh-CN", { weekday: "short" }))}</strong><span class="forecast-icon">${weatherIcon(day.condition)}</span><span>${formatNumber(convert(day.high))}° / ${formatNumber(convert(day.low))}°</span><small>${weatherCodeText(day.condition)}</small></div>`).join("")}</div><div class="weather-footer">数据更新时间：${escapeHtml(formatLocalDate(new Date(result.fetchedAt)))} · 来源：<a href="https://www.nmc.cn/publish/forecast.html" target="_blank" rel="noreferrer">中央气象台（中国气象局）↗</a></div></div>`;
+}
+
+function renderSafetyResult(result: SafetyResult): string {
+  const links = [
+    ["PubChem 记录", `https://pubchem.ncbi.nlm.nih.gov/compound/${result.cid}`],
+    ["GESTIS 数据库", "https://gestis.dguv.de/"],
+    ["CAMEO Chemicals", "https://cameochemicals.noaa.gov/"],
+    ["ECHA CHEM", "https://echa.europa.eu/echa-chem"],
+  ];
+  return `<div class="safety-card"><div class="safety-card-heading"><div><p class="eyebrow">PUBCHEM / CID ${result.cid}</p><h2>${escapeHtml(result.title)}</h2><p class="safety-query">查询：${escapeHtml(result.query)}</p></div><div class="safety-pictograms">${result.pictograms.map((pictogram) => `<span>${escapeHtml(pictogram)}</span>`).join("") || "<span>未提供图标</span>"}</div></div><div class="safety-meta"><div><small>IUPAC 名称</small><strong>${escapeHtml(result.iupacName)}</strong></div><div><small>分子式</small><strong>${escapeHtml(result.formula)}</strong></div><div><small>相对分子质量</small><strong>${escapeHtml(result.molecularWeight)}</strong></div></div><div class="safety-summary"><section><h3>信号词</h3><p>${escapeHtml(result.signal)}</p></section><section><h3>GHS 危害说明</h3><p>${escapeHtml(result.hazards)}</p></section><section><h3>防范说明代码</h3><p>${escapeHtml(result.precautions)}</p></section></div><div class="safety-links"><strong>官方数据库</strong>${links.map(([label, href]) => `<a href="${href}" target="_blank" rel="noreferrer">${label} ↗</a>`).join("")}</div><div class="safety-footer">查询时间：${escapeHtml(formatLocalDate(new Date(result.fetchedAt)))} · 仅供参考，不替代供应商针对具体产品、浓度和地区法规提供的 SDS。</div></div>`;
 }
 
 function bindWeather(): void {
@@ -169,6 +182,18 @@ function bindWeather(): void {
     finally { button?.removeAttribute("aria-busy"); button?.removeAttribute("disabled"); }
   };
   const bindWeatherUnit = () => { resultBox?.querySelector("#weather-unit")?.addEventListener("change", (event) => { fahrenheit = (event.target as HTMLSelectElement).value === "f"; if (lastResult && resultBox) resultBox.innerHTML = renderWeatherResult(lastResult, fahrenheit); bindWeatherUnit(); }); };
+  button?.addEventListener("click", () => void search()); input?.addEventListener("keydown", (event) => { if (event.key === "Enter") void search(); });
+}
+
+function bindSafety(): void {
+  const input = document.querySelector<HTMLInputElement>("#safety-query"); const button = document.querySelector<HTMLButtonElement>("#safety-search-button"); const status = document.querySelector<HTMLElement>("#safety-status"); const resultBox = document.querySelector<HTMLElement>("#safety-result");
+  const search = async () => {
+    if (!input || !status || !resultBox) return;
+    button?.setAttribute("aria-busy", "true"); button?.setAttribute("disabled", "true"); resultBox.innerHTML = ""; feedback(status, "正在查询 PubChem…", "muted");
+    try { const result = await fetchSafety(input.value); storage.write("workbench:safety-query", input.value.trim()); resultBox.innerHTML = renderSafetyResult(result); feedback(status, "查询成功", "ok"); }
+    catch (error) { feedback(status, error instanceof SafetyError ? error.message : "化学品安全信息查询失败，请稍后重试。", "error"); }
+    finally { button?.removeAttribute("aria-busy"); button?.removeAttribute("disabled"); }
+  };
   button?.addEventListener("click", () => void search()); input?.addEventListener("keydown", (event) => { if (event.key === "Enter") void search(); });
 }
 
@@ -198,7 +223,7 @@ function bindDiff(): void {
   document.querySelector("#diff-clear")?.addEventListener("click", () => { left.value = ""; right.value = ""; output.innerHTML = ""; feedback(status, "已清空", "ok"); });
 }
 
-function bindTool(id: ToolId): void { if (id === "weather") bindWeather(); if (id === "markdown") bindMarkdown(); if (id === "text") bindText(); if (id === "diff") bindDiff(); }
+function bindTool(id: ToolId): void { if (id === "weather") bindWeather(); if (id === "safety") bindSafety(); if (id === "markdown") bindMarkdown(); if (id === "text") bindText(); if (id === "diff") bindDiff(); }
 
 function renderApp(): void {
   const raw = window.location.hash.slice(1) as ToolId | "home";

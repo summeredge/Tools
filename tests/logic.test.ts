@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import createDOMPurify from "dompurify";
 import { createStorageAdapter } from "../src/logic";
 import { renderMarkdown as renderSafeMarkdown } from "../src/markdown";
+import { fetchSafety } from "../src/safety";
 import { fetchWeather, WeatherError } from "../src/weather";
 
 describe("Markdown 安全净化和存储降级", () => {
@@ -20,6 +21,41 @@ describe("Markdown 安全净化和存储降级", () => {
     expect(adapter.available).toBe(false);
     expect(adapter.read("key", "fallback")).toBe("fallback");
     expect(adapter.write("key", "value")).toBe(false);
+  });
+});
+
+describe("化学品安全信息服务", () => {
+  const originalFetch = globalThis.fetch;
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  it("按名称解析 PubChem CID 并提取 GHS 摘要", async () => {
+    const requestedUrls: string[] = [];
+    globalThis.fetch = (async (input) => {
+      const url = String(input);
+      requestedUrls.push(url);
+      if (url.includes("/cids/")) return new Response(JSON.stringify({ IdentifierList: { CID: [702] } }));
+      if (url.includes("/property/")) return new Response(JSON.stringify({ PropertyTable: { Properties: [{ IUPACName: "ethanol", MolecularFormula: "C2H6O", MolecularWeight: "46.07" }] } }));
+      return new Response(JSON.stringify({ Record: { RecordTitle: "Ethanol", Section: [{ TOCHeading: "Safety and Hazards", Section: [{ TOCHeading: "Hazards Identification", Section: [{ TOCHeading: "GHS Classification", Information: [{ Name: "Pictogram(s)", Value: { StringWithMarkup: [{ String: " ", Markup: [{ Extra: "Flammable" }] }] } }, { Name: "Signal", Value: { StringWithMarkup: [{ String: "Danger" }] } }, { Name: "GHS Hazard Statements", Value: { StringWithMarkup: [{ String: "H225: Highly Flammable liquid and vapor" }] } }, { Name: "Precautionary Statement Codes", Value: { StringWithMarkup: [{ String: "P210, P233" }] } }] }] }] }] } }));
+    }) as typeof fetch;
+
+    const result = await fetchSafety("ethanol");
+
+    expect(requestedUrls[0]).toContain("/compound/name/ethanol/cids/JSON");
+    expect(result.cid).toBe(702);
+    expect(result.formula).toBe("C2H6O");
+    expect(result.pictograms).toEqual(["Flammable"]);
+    expect(result.signal).toBe("Danger");
+    expect(result.hazards).toContain("H225");
+    expect(result.precautions).toContain("P210");
+
+    requestedUrls.length = 0;
+    await fetchSafety("64-17-5");
+    expect(requestedUrls[0]).toContain("/compound/identifier/64-17-5/cids/JSON?identifier_type=CAS");
+  });
+
+  it("没有 CID 时返回可理解的空结果错误", async () => {
+    globalThis.fetch = (async () => new Response(JSON.stringify({ IdentifierList: { CID: [] } }))) as typeof fetch;
+    await expect(fetchSafety("不存在的化学品")).rejects.toMatchObject({ kind: "empty" });
   });
 });
 
