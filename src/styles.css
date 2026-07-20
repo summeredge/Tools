@@ -195,12 +195,16 @@ input:focus, textarea:focus, select:focus, button:focus-visible { border-color: 
 .safety-meta small, .safety-meta strong { display: block; }
 .safety-meta small { color: var(--muted); font-size: 10px; margin-bottom: 4px; }
 .safety-meta strong { font-size: 12px; overflow-wrap: anywhere; }
-.safety-summary { display: grid; grid-template-columns: min-content minmax(180px, 1fr) minmax(280px, 2fr); gap: 12px; padding: 20px 25px; }
-.safety-summary section { min-width: 0; padding: 13px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); }
-.safety-summary h3 { font-size: 12px; margin: 0 0 8px; }
-.safety-summary p { color: var(--muted); font-size: 11px; line-height: 1.65; margin: 0; overflow-wrap: anywhere; }
-.safety-primary-hazards { display: flex; flex-wrap: wrap; gap: 6px; }
-.safety-primary-hazards span { padding: 6px 8px; border-radius: 6px; color: #9a5a22; background: #fff8ef; font-size: 10px; white-space: nowrap; }
+.safety-summary { padding: 20px 25px; overflow-x: auto; }
+.safety-summary table { width: 100%; min-width: 640px; border-collapse: collapse; table-layout: fixed; }
+.safety-summary .signal-column { width: 128px; }
+.safety-summary .hazard-column { width: 226px; }
+.safety-summary th, .safety-summary td { padding: 7px; border: 1px solid var(--line-strong); text-align: left; vertical-align: top; }
+.safety-summary th { color: var(--text); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.safety-summary td { color: var(--muted); font-size: 11px; line-height: 1.65; overflow-wrap: anywhere; }
+.safety-summary td:first-child { text-transform: lowercase; white-space: nowrap; }
+.safety-primary-hazards { display: grid; gap: 2px; }
+.safety-primary-hazards span { color: var(--muted); }
 .safety-details { padding: 20px 25px; border-top: 1px solid var(--line); }
 .safety-details-heading h3 { margin: 0 0 5px; font-size: 14px; }
 .safety-details-heading p { margin: 0 0 13px; color: var(--muted-soft); font-size: 10px; line-height: 1.6; }
@@ -291,7 +295,7 @@ footer span { color: var(--muted-soft); }
   .forecast-day { min-width: 70px; }
   .safety-card-heading { padding: 19px; }
   .safety-meta { grid-template-columns: 1fr 1fr; padding: 15px 19px; }
-  .safety-summary { grid-template-columns: 1fr; padding: 15px 19px; }
+  .safety-summary { padding: 15px 19px; }
   .safety-details { padding: 15px 19px; }
   .safety-detail-grid { grid-template-columns: 1fr; }
   .safety-links { padding: 12px 19px; }
