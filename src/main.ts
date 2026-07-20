@@ -3,30 +3,24 @@ import "./styles.css";
 import { diffLines } from "diff";
 import { renderMarkdown } from "./markdown";
 import {
-  UNIT_CATEGORIES,
-  convertUnit,
   createStorageAdapter,
   formatNumber,
-  jsonTransform,
   sortLines,
   textStats,
   uniqueLines,
-  type UnitCategory,
 } from "./logic";
 import { fetchWeather, weatherCodeText, weatherIcon, WeatherError, type WeatherResult } from "./weather";
 
-type ToolId = "units" | "weather" | "markdown" | "text" | "json" | "diff";
+type ToolId = "weather" | "markdown" | "text" | "diff";
 type HomeMode = "all" | "favorites" | "recent";
 type Theme = "system" | "light" | "dark";
 
 type Tool = { id: ToolId; name: string; description: string; category: string; mark: string; keywords: string[] };
 
 const tools: Tool[] = [
-  { id: "units", name: "单位换算", description: "长度、温度、压力等常用单位双向转换", category: "计算", mark: "↔", keywords: ["长度", "温度", "压力", "质量", "数据"] },
   { id: "weather", name: "天气查询", description: "查询城市当前天气与未来 5 日预报", category: "外部数据", mark: "☁", keywords: ["天气", "温度", "预报", "城市"] },
   { id: "markdown", name: "Markdown", description: "边写边预览，安全净化并下载草稿", category: "文档", mark: "MD", keywords: ["文档", "预览", "表格", "代码"] },
   { id: "text", name: "文本处理", description: "统计、清理、排序、去重与大小写转换", category: "文本", mark: "Aa", keywords: ["字符", "行", "空白", "排序"] },
-  { id: "json", name: "JSON 工具", description: "格式化、压缩与语法错误提示", category: "文本", mark: "{}", keywords: ["格式化", "压缩", "校验"] },
   { id: "diff", name: "文本对比", description: "逐行查看新增、删除与未变化内容", category: "文本", mark: "Δ", keywords: ["差异", "比较", "新增", "删除"] },
 ];
 
@@ -151,11 +145,9 @@ function renderToolShell(tool: Tool): string {
 
 function renderToolContent(id: ToolId): string {
   switch (id) {
-    case "units": return `<div class="unit-converter"><div class="form-row"><label>类别<select id="unit-category">${Object.entries(UNIT_CATEGORIES).map(([key, value]) => `<option value="${key}">${value.label}</option>`).join("")}</select></label><label>从<select id="unit-from"></select></label><button class="swap-button" id="unit-swap" aria-label="交换单位">⇄</button><label>换算为<select id="unit-to"></select></label></div><div class="conversion-row"><label><span>输入值</span><input id="unit-input" type="number" inputmode="decimal" value="1"></label><span class="equals">=</span><label><span>结果</span><div class="copy-field"><input id="unit-output" type="text" readonly aria-label="换算结果"><button class="icon-button" id="unit-copy" aria-label="复制结果">⧉</button></div></label></div><div class="feedback" id="unit-feedback" aria-live="polite">选择类别后双向即时换算。</div></div>`;
     case "weather": return `<div class="weather-tool"><div class="weather-search"><label for="weather-city">城市</label><div class="calc-input-row"><input id="weather-city" type="search" value="${escapeHtml(storage.read<string>("workbench:weather-city", ""))}" placeholder="例如：上海、北京" autocomplete="off"><button class="button primary" id="weather-search-button">查询天气</button></div><p class="hint">默认摄氏度，不强制获取浏览器定位。数据来自 <a href="https://www.nmc.cn/publish/forecast.html" target="_blank" rel="noreferrer">中央气象台（中国气象局）↗</a>。</p></div><div id="weather-status" class="feedback" aria-live="polite">请输入城市开始查询。</div><div id="weather-result"></div></div>`;
     case "markdown": return `<div class="markdown-tool"><div class="markdown-actions"><span class="hint">草稿仅自动保存到当前浏览器。</span><div><button class="button secondary" id="markdown-copy">复制 Markdown</button><button class="button secondary" id="markdown-copy-html">复制渲染结果</button><button class="button primary" id="markdown-download">下载 .md</button></div></div><div class="markdown-tabs"><button class="active" data-md-tab="edit">编辑</button><button data-md-tab="preview">预览</button></div><div class="markdown-grid"><label class="markdown-editor" data-md-pane="edit"><span class="sr-only">Markdown 编辑器</span><textarea id="markdown-input" spellcheck="false" placeholder="# 今日记录\n\n- 一个清单\n- \`Ctrl + Enter\` 之外也可以直接预览"></textarea></label><article class="markdown-preview" data-md-pane="preview" id="markdown-preview" aria-label="Markdown 预览"></article></div><div class="feedback" id="markdown-feedback" aria-live="polite"></div></div>`;
     case "text": return `<div class="text-tool"><div class="text-actions"><div class="stats" id="text-stats">字符 0 · 字数 0 · 行数 0</div><div class="button-group"><button class="button secondary" data-text-action="upper">大写</button><button class="button secondary" data-text-action="lower">小写</button><button class="button secondary" data-text-action="trim">去首尾空白</button><button class="button secondary" data-text-action="collapse">去多余空白</button><button class="button secondary" data-text-action="sort">行排序</button><button class="button secondary" data-text-action="unique">行去重</button><button class="button primary" data-text-copy>复制</button><button class="button danger" data-text-clear>清空</button></div></div><textarea id="text-input" class="large-textarea" placeholder="在这里输入或粘贴文本…"></textarea><div class="feedback" id="text-feedback" aria-live="polite"></div></div>`;
-    case "json": return `<div class="json-tool"><div class="split-actions"><span class="hint">内容只在浏览器本地处理，不会上传。</span><div><button class="button secondary" id="json-format">格式化</button><button class="button secondary" id="json-compact">压缩</button><button class="button primary" id="json-copy">复制结果</button></div></div><div class="json-grid"><label><span>输入 JSON</span><textarea id="json-input" spellcheck="false" placeholder='{"name":"workbench","enabled":true}'></textarea></label><label><span>结果</span><textarea id="json-output" spellcheck="false" readonly></textarea></label></div><div class="feedback" id="json-feedback" aria-live="polite"></div></div>`;
     case "diff": return `<div class="diff-tool"><div class="split-actions"><span class="hint">长文本会先显示处理状态，比较全程在浏览器内完成。</span><div><button class="button primary" id="diff-run">开始比较</button><button class="button secondary" id="diff-clear">清空</button></div></div><div class="diff-input-grid"><label><span>原文本</span><textarea id="diff-left" spellcheck="false" placeholder="原始内容…"></textarea></label><label><span>新文本</span><textarea id="diff-right" spellcheck="false" placeholder="修改后的内容…"></textarea></label></div><div id="diff-status" class="feedback" aria-live="polite"></div><div id="diff-output" class="diff-output"></div></div>`;
   }
 }
@@ -164,21 +156,6 @@ function renderWeatherResult(result: WeatherResult, fahrenheit = false): string 
   const convert = (value: number) => fahrenheit ? value * 9 / 5 + 32 : value;
   const unit = fahrenheit ? "°F" : "°C";
   return `<div class="weather-card"><div class="weather-current"><div><p class="eyebrow">CURRENT / ${escapeHtml(result.timezone)}</p><h2>${escapeHtml(result.city)} <small>${escapeHtml(result.country)}</small></h2><div class="weather-temp">${formatNumber(convert(result.temperature))}${unit}</div><p>${weatherCodeText(result.condition)} · 体感 ${formatNumber(convert(result.apparent))}${unit}</p></div><div class="weather-big-icon">${weatherIcon(result.condition)}</div></div><div class="weather-metrics"><span><strong>${formatNumber(result.humidity)}%</strong><small>相对湿度</small></span><span><strong>${formatNumber(result.wind)} km/h</strong><small>风速</small></span><label class="unit-toggle">温度单位<select id="weather-unit"><option value="c" ${!fahrenheit ? "selected" : ""}>摄氏度</option><option value="f" ${fahrenheit ? "selected" : ""}>华氏度</option></select></label></div><div class="forecast-grid">${result.days.map((day) => `<div class="forecast-day"><strong>${escapeHtml(new Date(`${day.date}T12:00:00`).toLocaleDateString("zh-CN", { weekday: "short" }))}</strong><span class="forecast-icon">${weatherIcon(day.condition)}</span><span>${formatNumber(convert(day.high))}° / ${formatNumber(convert(day.low))}°</span><small>${weatherCodeText(day.condition)}</small></div>`).join("")}</div><div class="weather-footer">数据更新时间：${escapeHtml(formatLocalDate(new Date(result.fetchedAt)))} · 来源：<a href="https://www.nmc.cn/publish/forecast.html" target="_blank" rel="noreferrer">中央气象台（中国气象局）↗</a></div></div>`;
-}
-
-function fillUnitSelect(select: HTMLSelectElement, category: UnitCategory, selected?: string): void {
-  select.innerHTML = Object.entries(UNIT_CATEGORIES[category].units).map(([key, unit]) => `<option value="${key}" ${key === selected ? "selected" : ""}>${unit.label}</option>`).join("");
-}
-
-function bindUnits(): void {
-  const category = document.querySelector<HTMLSelectElement>("#unit-category"); const from = document.querySelector<HTMLSelectElement>("#unit-from"); const to = document.querySelector<HTMLSelectElement>("#unit-to"); const input = document.querySelector<HTMLInputElement>("#unit-input"); const output = document.querySelector<HTMLInputElement>("#unit-output"); const status = document.querySelector<HTMLElement>("#unit-feedback");
-  if (!category || !from || !to || !input || !output) return;
-  const updateUnits = () => { const key = category.value as UnitCategory; fillUnitSelect(from, key); fillUnitSelect(to, key, Object.keys(UNIT_CATEGORIES[key].units)[1]); update(); };
-  const update = () => { try { output.value = formatNumber(convertUnit(Number(input.value), category.value as UnitCategory, from.value, to.value)); feedback(status, "双向即时换算", "ok"); } catch (error) { output.value = ""; feedback(status, error instanceof Error ? error.message : "换算失败", "error"); } };
-  category.addEventListener("change", updateUnits); from.addEventListener("change", update); to.addEventListener("change", update); input.addEventListener("input", update);
-  document.querySelector("#unit-swap")?.addEventListener("click", () => { const value = from.value; from.value = to.value; to.value = value; update(); });
-  document.querySelector("#unit-copy")?.addEventListener("click", () => copyText(output.value, status));
-  updateUnits();
 }
 
 function bindWeather(): void {
@@ -215,19 +192,13 @@ function bindText(): void {
   document.querySelector("[data-text-copy]")?.addEventListener("click", () => copyText(input.value, status)); document.querySelector("[data-text-clear]")?.addEventListener("click", () => { input.value = ""; update(); feedback(status, "已清空", "ok"); });
 }
 
-function bindJson(): void {
-  const input = document.querySelector<HTMLTextAreaElement>("#json-input"); const output = document.querySelector<HTMLTextAreaElement>("#json-output"); const status = document.querySelector<HTMLElement>("#json-feedback"); if (!input || !output) return;
-  const transform = (compact: boolean) => { const result = jsonTransform(input.value, compact); if (result.ok) { output.value = result.value; feedback(status, compact ? "已压缩" : "已格式化", "ok"); } else { output.value = ""; feedback(status, result.error, "error"); } };
-  document.querySelector("#json-format")?.addEventListener("click", () => transform(false)); document.querySelector("#json-compact")?.addEventListener("click", () => transform(true)); document.querySelector("#json-copy")?.addEventListener("click", () => copyText(output.value, status));
-}
-
 function bindDiff(): void {
   const left = document.querySelector<HTMLTextAreaElement>("#diff-left"); const right = document.querySelector<HTMLTextAreaElement>("#diff-right"); const output = document.querySelector<HTMLElement>("#diff-output"); const status = document.querySelector<HTMLElement>("#diff-status"); if (!left || !right || !output) return;
   document.querySelector("#diff-run")?.addEventListener("click", () => { feedback(status, "正在比较…", "muted"); output.innerHTML = ""; window.setTimeout(() => { const parts = diffLines(left.value, right.value); output.innerHTML = parts.map((part) => `<span class="diff-line ${part.added ? "added" : part.removed ? "removed" : "unchanged"}">${part.value.split("\n").map((line) => line ? escapeHtml(`${part.added ? "+ " : part.removed ? "− " : "  "}${line}`) : "").join("\n")}</span>`).join(""); feedback(status, "比较完成，新增和删除已标色。", "ok"); }, 20); });
   document.querySelector("#diff-clear")?.addEventListener("click", () => { left.value = ""; right.value = ""; output.innerHTML = ""; feedback(status, "已清空", "ok"); });
 }
 
-function bindTool(id: ToolId): void { if (id === "units") bindUnits(); if (id === "weather") bindWeather(); if (id === "markdown") bindMarkdown(); if (id === "text") bindText(); if (id === "json") bindJson(); if (id === "diff") bindDiff(); }
+function bindTool(id: ToolId): void { if (id === "weather") bindWeather(); if (id === "markdown") bindMarkdown(); if (id === "text") bindText(); if (id === "diff") bindDiff(); }
 
 function renderApp(): void {
   const raw = window.location.hash.slice(1) as ToolId | "home";

@@ -1,36 +1,9 @@
 import { JSDOM } from "jsdom";
 import { afterEach, describe, expect, it } from "vitest";
 import createDOMPurify from "dompurify";
-import {
-  UNIT_CATEGORIES,
-  convertUnit,
-  createStorageAdapter,
-  jsonTransform,
-} from "../src/logic";
+import { createStorageAdapter } from "../src/logic";
 import { renderMarkdown as renderSafeMarkdown } from "../src/markdown";
 import { fetchWeather, WeatherError } from "../src/weather";
-
-describe("单位换算", () => {
-  it("覆盖温度、压力和全部单位类别", () => {
-    expect(convertUnit(32, "temperature", "f", "c")).toBeCloseTo(0);
-    expect(convertUnit(100, "temperature", "c", "f")).toBeCloseTo(212);
-    expect(convertUnit(1, "pressure", "bar", "kpa")).toBeCloseTo(100);
-    for (const category of Object.keys(UNIT_CATEGORIES) as Array<keyof typeof UNIT_CATEGORIES>) {
-      const keys = Object.keys(UNIT_CATEGORIES[category].units);
-      expect(convertUnit(1, category, keys[0]!, keys[0]!)).toBe(1);
-    }
-  });
-});
-
-describe("JSON", () => {
-  it("格式化和压缩 JSON，并保留可理解的错误", () => {
-    expect(jsonTransform('{"a":1,"b":[true]}', false)).toEqual({ ok: true, value: '{\n  "a": 1,\n  "b": [\n    true\n  ]\n}' });
-    expect(jsonTransform('{"a":1}', true)).toEqual({ ok: true, value: '{"a":1}' });
-    const bad = jsonTransform('{"a":}', false);
-    expect(bad.ok).toBe(false);
-    if (!bad.ok) expect(bad.error).toMatch(/JSON|position|字符/);
-  });
-});
 
 describe("Markdown 安全净化和存储降级", () => {
   it("移除脚本和危险链接，同时保留常见 Markdown", () => {
