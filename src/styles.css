@@ -118,6 +118,7 @@ kbd { padding: 2px 5px; border: 1px solid var(--line-strong); border-radius: 4px
 .tool-heading-mark { width: 54px; height: 54px; border-radius: 13px; font-size: 20px; flex: 0 0 auto; }
 .mark-weather { color: #ad7d20; background: #fff5d7; }
 .mark-safety { color: #9a5a22; background: #fff0df; }
+.mark-if97 { color: #2a6d9e; background: #e6f2fb; }
 .mark-markdown { color: #b04e76; background: #fbeaf1; }
 .mark-text, .mark-diff { color: #1c9a73; background: #e3f6ee; }
 .favorite-button { width: 28px; height: 28px; border: 0; background: transparent; color: var(--muted-soft); font-size: 19px; padding: 0; }
@@ -205,6 +206,11 @@ input:focus, textarea:focus, select:focus, button:focus-visible { border-color: 
 .safety-links a { color: var(--accent); }
 .safety-footer { padding: 11px 17px; border-top: 1px solid var(--line); color: var(--muted-soft); font-size: 10px; line-height: 1.6; }
 
+.if97-tool { display: grid; gap: 12px; }
+.if97-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.if97-toolbar .hint { margin: 0; }
+.if97-frame { display: block; width: 100%; height: 1500px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+
 .markdown-actions, .split-actions, .text-actions { justify-content: space-between; flex-wrap: wrap; margin-bottom: 15px; }
 .markdown-actions > div, .split-actions > div { display: flex; gap: 7px; flex-wrap: wrap; }
 .markdown-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
@@ -279,6 +285,7 @@ footer span { color: var(--muted-soft); }
   .safety-meta { grid-template-columns: 1fr 1fr; padding: 15px 19px; }
   .safety-summary { grid-template-columns: 1fr; padding: 15px 19px; }
   .safety-links { padding: 12px 19px; }
+  .if97-frame { height: 1650px; }
   .markdown-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
   .markdown-tabs button { border-radius: 7px; }
   .markdown-grid { display: block; }

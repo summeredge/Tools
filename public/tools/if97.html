@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<!--
+Bundled dependency: iapws-if97 v2.1.5 (MIT)
+MIT License
+
+Copyright (c) 2026 jltonghui
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light" />
+  <title>IF97 水和蒸汽物性计算器</title>
+  <style>
+    :root {
+      --ink: #15251f;
+      --muted: #60716a;
+      --line: #dbe5e0;
+      --soft: #f3f7f5;
+      --paper: #ffffff;
+      --accent: #0f766e;
+      --accent-dark: #0b5b55;
+      --accent-soft: #dff3ef;
+      --warning: #9a5b08;
+      --warning-bg: #fff7e7;
+      --danger: #a12b2b;
+      --danger-bg: #fff0f0;
+      --shadow: 0 18px 44px rgba(28, 55, 45, 0.10);
+      --radius-xl: 24px;
+      --radius-lg: 16px;
+      --radius-md: 12px;
+    }
+
+    * { box-sizing: border-box; }
+    html { min-width: 320px; background: #edf3f0; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 8% 0%, rgba(15,118,110,.13), transparent 27rem),
+        linear-gradient(180deg, #f8fbfa 0%, #edf3f0 100%);
+      font-family: Inter, "Segoe UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+      line-height: 1.5;
+    }
+
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    [hidden] { display: none !important; }
+
+    .page-shell { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 34px 0 48px; }
+
+    .masthead {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      align-items: flex-start;
+      margin-bottom: 24px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--accent-dark);
+      font-size: 12px;
+      font-weight: 750;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before { content: ""; width: 26px; height: 2px; background: var(--accent); }
+    h1 { margin: 10px 0 8px; font-size: clamp(30px, 4vw, 48px); line-height: 1.08; letter-spacing: -.035em; }
+    .subtitle { margin: 0; max-width: 720px; color: var(--muted); font-size: 15px; }
+
+    .status-pill {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 13px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255,255,255,.78);
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 650;
+      box-shadow: 0 8px 22px rgba(29,56,47,.06);
+    }
+
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+
+    .workspace { display: grid; grid-template-columns: minmax(300px, 360px) minmax(0, 1fr); gap: 22px; align-items: start; }
+
+    .panel {
+      border: 1px solid rgba(211,224,217,.92);
+      background: rgba(255,255,255,.93);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+
+    .input-panel { padding: 24px; position: sticky; top: 20px; }
+    .section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+    .section-heading h2 { margin: 0; font-size: 18px; letter-spacing: -.015em; }
+    .section-heading span { color: var(--muted); font-size: 12px; }
+
+    .field { margin-bottom: 17px; }
+    .field label { display: block; margin-bottom: 7px; color: #34473f; font-size: 13px; font-weight: 700; }
+    .input-combo { display: grid; grid-template-columns: minmax(0, 1fr) 92px; }
+    .input-combo input, .input-combo select {
+      width: 100%; height: 48px; border: 1px solid #cad8d2; background: #fff; color: var(--ink); outline: none;
+    }
+    .input-combo input { border-radius: 12px 0 0 12px; padding: 0 14px; font-variant-numeric: tabular-nums; }
+    .input-combo select { border-left: 0; border-radius: 0 12px 12px 0; padding: 0 10px; color: #41564d; }
+    .input-combo input:focus, .input-combo select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(15,118,110,.10); position: relative; z-index: 1; }
+    .field-note { margin: 6px 0 0; color: #7b8a84; font-size: 11px; }
+
+    .preset-title { margin: 20px 0 9px; color: #50645b; font-size: 12px; font-weight: 750; }
+    .presets { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .preset {
+      min-height: 38px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 10px; background: var(--soft); color: #3f544b; font-size: 12px; text-align: left;
+    }
+    .preset:hover { border-color: #9fc6ba; background: #eaf6f2; color: var(--accent-dark); }
+
+    .error-box { margin: 16px 0 0; padding: 11px 12px; border: 1px solid #f0caca; border-radius: 10px; background: var(--danger-bg); color: var(--danger); font-size: 12px; }
+
+    .actions { display: grid; grid-template-columns: 1fr auto; gap: 9px; margin-top: 20px; }
+    .btn { min-height: 46px; border-radius: 12px; border: 1px solid transparent; padding: 0 17px; font-weight: 750; transition: .16s ease; }
+    .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 10px 20px rgba(15,118,110,.18); }
+    .btn-primary:hover { background: var(--accent-dark); transform: translateY(-1px); }
+    .btn-secondary { border-color: var(--line); background: #fff; color: #4a5d55; }
+    .btn-secondary:hover { background: var(--soft); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+    .btn.is-loading { color: transparent; position: relative; }
+    .btn.is-loading::after { content: ""; position: absolute; inset: 0; margin: auto; width: 17px; height: 17px; border: 2px solid rgba(255,255,255,.45); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .validity { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); color: #73827c; font-size: 11px; }
+    .validity strong { color: #53665e; }
+
+    .output-panel { min-height: 650px; overflow: hidden; }
+    .empty-state { min-height: 650px; display: grid; place-items: center; padding: 40px; text-align: center; }
+    .empty-icon { width: 78px; height: 78px; margin: 0 auto 18px; display: grid; place-items: center; border-radius: 22px; background: var(--accent-soft); color: var(--accent); font-size: 34px; }
+    .empty-state h2 { margin: 0 0 8px; font-size: 22px; }
+    .empty-state p { margin: 0; max-width: 480px; color: var(--muted); font-size: 14px; }
+
+    .result-header { padding: 24px 26px 20px; background: linear-gradient(135deg, #123d38 0%, #0f766e 100%); color: #fff; }
+    .result-topline { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; }
+    .phase-kicker { margin-bottom: 5px; color: rgba(255,255,255,.68); font-size: 11px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+    .phase-name { margin: 0; font-size: clamp(24px, 3vw, 34px); letter-spacing: -.025em; }
+    .phase-meta { margin-top: 6px; color: rgba(255,255,255,.74); font-size: 13px; }
+    .header-actions { display: flex; gap: 8px; }
+    .header-actions button { min-height: 36px; padding: 0 12px; border: 1px solid rgba(255,255,255,.27); border-radius: 10px; background: rgba(255,255,255,.09); color: #fff; font-size: 12px; font-weight: 700; }
+    .header-actions button:hover { background: rgba(255,255,255,.16); }
+    .input-summary { margin-top: 20px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,.18); color: rgba(255,255,255,.90); font-variant-numeric: tabular-nums; font-size: 13px; }
+
+    .result-body { padding: 24px 26px 28px; }
+    .saturation-note { margin-bottom: 20px; padding: 12px 14px; border: 1px solid #ead9b6; border-radius: 12px; background: var(--warning-bg); color: var(--warning); font-size: 12px; }
+
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 11px; margin-bottom: 24px; }
+    .metric-card { min-width: 0; padding: 15px; border: 1px solid var(--line); border-radius: 14px; background: linear-gradient(180deg, #fff, #f8fbfa); }
+    .metric-label { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 11px; font-weight: 700; }
+    .metric-symbol { color: var(--accent); font-family: Cambria, Georgia, serif; font-size: 13px; }
+    .metric-value { margin: 12px 0 3px; overflow: hidden; color: #17382f; font-size: clamp(20px, 2.2vw, 27px); font-weight: 800; letter-spacing: -.025em; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .metric-unit { color: #809089; font-size: 10px; }
+
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { padding: 11px 14px; background: var(--soft); color: #53665e; font-size: 11px; text-align: left; letter-spacing: .04em; }
+    td { padding: 11px 14px; border-top: 1px solid #e8efec; color: #3d5148; }
+    tbody tr:hover { background: #fafcfb; }
+    td.numeric { color: #17382f; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .property-name { display: inline-block; min-width: 112px; color: #34483f; font-weight: 650; }
+    .property-symbol { color: #82918b; font-family: Cambria, Georgia, serif; }
+
+    .footer-note { margin: 18px 2px 0; color: #76867f; font-size: 11px; text-align: center; }
+    .footer-note a { color: var(--accent-dark); }
+
+    @media (max-width: 900px) {
+      .workspace { grid-template-columns: 1fr; }
+      .input-panel { position: static; }
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .empty-state, .output-panel { min-height: 0; }
+    }
+
+    @media (max-width: 620px) {
+      .page-shell { width: min(100% - 20px, 1180px); padding-top: 22px; }
+      .masthead { display: block; }
+      .status-pill { margin-top: 14px; }
+      .input-panel, .result-body { padding: 19px; }
+      .result-header { padding: 20px; }
+      .result-topline { display: block; }
+      .header-actions { margin-top: 16px; }
+      .metrics { grid-template-columns: 1fr 1fr; }
+      .property-name { min-width: 0; margin-right: 8px; }
+      td, th { padding-left: 10px; padding-right: 10px; }
+    }
+
+    @media (max-width: 420px) {
+      .presets, .metrics { grid-template-columns: 1fr; }
+      .actions { grid-template-columns: 1fr; }
+      .header-actions { display: grid; grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page-shell">
+    <header class="masthead">
+      <div>
+        <div class="eyebrow">Industrial Steam Properties</div>
+        <h1>IF97 水和蒸汽物性计算器</h1>
+        <p class="subtitle">输入压力与温度，计算对应的热力学状态、基础物性及输运物性。计算在浏览器本地完成，不上传输入数据。</p>
+      </div>
+      <div class="status-pill"><span class="status-dot"></span><span id="calcStatus">等待计算</span></div>
+    </header>
+
+    <div class="workspace">
+      <section class="panel input-panel" aria-labelledby="inputTitle">
+        <div class="section-heading">
+          <h2 id="inputTitle">状态点输入</h2>
+          <span>PT 模式</span>
+        </div>
+
+        <div class="field">
+          <label for="pressure">绝对压力</label>
+          <div class="input-combo">
+            <input id="pressure" type="number" value="1" min="0" step="any" inputmode="decimal" aria-describedby="pressureNote" />
+            <select id="pressureUnit" aria-label="压力单位">
+              <option value="MPa">MPa</option>
+              <option value="bar">bar</option>
+              <option value="kPa">kPa</option>
+            </select>
+          </div>
+          <p class="field-note" id="pressureNote">必须输入绝对压力，不是表压。</p>
+        </div>
+
+        <div class="field">
+          <label for="temperature">温度</label>
+          <div class="input-combo">
+            <input id="temperature" type="number" value="200" step="any" inputmode="decimal" />
+            <select id="temperatureUnit" aria-label="温度单位">
+              <option value="C">°C</option>
+              <option value="K">K</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="preset-title">典型状态点</div>
+        <div class="presets">
+          <button class="preset" type="button" data-preset data-p="0.1" data-t="26.85">常温水 · 0.1 MPa</button>
+          <button class="preset" type="button" data-preset data-p="1" data-t="200">过热蒸汽 · 1 MPa</button>
+          <button class="preset" type="button" data-preset data-p="16" data-t="550">高压蒸汽 · 16 MPa</button>
+          <button class="preset" type="button" data-preset data-p="25" data-t="400">超临界 · 25 MPa</button>
+        </div>
+
+        <div id="errorBox" class="error-box" role="alert" hidden></div>
+
+        <div class="actions">
+          <button id="calculateBtn" class="btn btn-primary" type="button">计算物性</button>
+          <button id="resetBtn" class="btn btn-secondary" type="button">重置</button>
+        </div>
+
+        <div class="validity">
+          <strong>IF97 有效范围：</strong>0–800 °C 时压力不高于 100 MPa；800–2000 °C 时压力不高于 50 MPa。临界点附近的物性梯度很大，应保留足够输入精度。
+        </div>
+      </section>
+
+      <section class="panel output-panel" aria-live="polite">
+        <div id="emptyState" class="empty-state">
+          <div>
+            <div class="empty-icon">≈</div>
+            <h2>输入状态点后开始计算</h2>
+            <p>页面将显示 IF97 区域、相态判断、饱和温度关系及 14 项常用水和蒸汽物性。</p>
+          </div>
+        </div>
+
+        <div id="resultPanel" hidden>
+          <header class="result-header">
+            <div class="result-topline">
+              <div>
+                <div class="phase-kicker">Calculated State</div>
+                <h2 id="phaseName" class="phase-name">—</h2>
+                <div id="phaseMeta" class="phase-meta">—</div>
+              </div>
+              <div class="header-actions">
+                <button id="copyBtn" type="button" disabled>复制结果</button>
+                <button id="csvBtn" type="button" disabled>导出 CSV</button>
+              </div>
+            </div>
+            <div id="inputSummary" class="input-summary">—</div>
+          </header>
+
+          <div class="result-body">
+            <div id="saturationInfo" class="saturation-note"></div>
+            <div id="propertyGrid" class="metrics"></div>
+            <div class="section-heading">
+              <h2>完整物性</h2>
+              <span>SI 工程单位</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>物性</th><th>数值</th><th>单位</th></tr>
+                </thead>
+                <tbody id="detailTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <p class="footer-note">计算模型：IAPWS-IF97。页面内嵌开源 <code>iapws-if97</code> v2.1.5（MIT）；结果用于工程计算辅助，关键设计点应按适用标准复核。</p>
+  </main>
+
+  <script>(()=>{var a1=Object.defineProperty;var c1=(e,t,n)=>t in e?a1(e,t,{enumerable:!0,configurable:!0,writable:!0,value:n}):e[t]=n;var D=(e,t,n)=>c1(e,typeof t!="symbol"?t+"":t,n);var S;(function(e){e[e.Region1=1]="Region1",e[e.Region2=2]="Region2",e[e.Region3=3]="Region3",e[e.Region4=4]="Region4",e[e.Region5=5]="Region5"})(S||(S={}));var P=class extends Error{constructor(t){super(t),this.name="IF97Error"}},B=class extends P{constructor(n,r,o,i){super(`${n} = ${r} is out of range [${o}, ${i}]`);D(this,"parameter");D(this,"value");D(this,"min");D(this,"max");this.parameter=n,this.value=r,this.min=o,this.max=i,this.name="OutOfRangeError"}},T=class extends P{constructor(n,r){super(`${n} failed to converge after ${r} iterations`);D(this,"solver");D(this,"iterations");this.solver=n,this.iterations=r,this.name="ConvergenceError"}};var w0=.46151805,y=647.096,b0=.001,t0=1e-9;var N=22.064,n0=1e-9;var F=322,r0=611657e-9,o0=273.16,A=.000611212677444,$=100,L=273.15,i0=2273.15;var s0=623.15,M0=1073.15;var G=16.5291642526;var a0=1073.15,Z=50,A0=2273.15;var u1=[[0,-2,.14632971213167],[0,-1,-.84548187169114],[0,0,-3.756360367204],[0,1,3.3855169168385],[0,2,-.95791963387872],[0,3,.15772038513228],[0,4,-.016616417199501],[0,5,.00081214629983568],[1,-9,.00028319080123804],[1,-7,-.00060706301565874],[1,-1,-.018990068218419],[1,0,-.032529748770505],[1,1,-.021841717175414],[1,3,-5283835796993e-17],[2,-3,-.00047184321073267],[2,0,-.00030001780793026],[2,1,47661393906987e-18],[2,3,-44141845330846e-19],[2,17,-72694996297594e-29],[3,-4,-31679644845054e-18],[3,0,-28270797985312e-19],[3,6,-85205128120103e-23],[4,-5,-22425281908e-16],[4,-2,-65171222895601e-20],[4,10,-14341729937924e-26],[5,-8,-40516996860117e-20],[8,-11,-12734301741641e-22],[8,-6,-17424871230634e-23],[21,-29,-68762131295531e-32],[23,-31,14478307828521e-33],[29,-38,26335781662795e-36],[30,-39,-11947622640071e-36],[31,-40,18228094581404e-37],[32,-41,-93537087292458e-39]],f1=16.53,l1=1386;function v0(e,t){let n=e/f1,r=l1/t,o=0,i=0,a=0,f=0,R=0,s=0;for(let[l,p,_]of u1){let m=Math.pow(7.1-n,l),C=Math.pow(r-1.222,p);o+=_*m*C,i+=-_*l*Math.pow(7.1-n,l-1)*C,a+=_*l*(l-1)*Math.pow(7.1-n,l-2)*C,f+=_*m*p*Math.pow(r-1.222,p-1),R+=_*m*p*(p-1)*Math.pow(r-1.222,p-2),s+=-_*l*Math.pow(7.1-n,l-1)*p*Math.pow(r-1.222,p-1)}return{region:S.Region1,pressure:e,temperature:t,specificVolume:.461526*t*n*i/(1e3*e),internalEnergy:.461526*t*(r*f-n*i),entropy:.461526*(r*f-o),enthalpy:.461526*t*r*f,cp:.461526*(-r*r*R),cv:.461526*(-r*r*R+Math.pow(i-r*s,2)/a),speedOfSound:Math.sqrt(1e3*.461526*t*i*i/(Math.pow(i-r*s,2)/(r*r*R)-a)),quality:null,isobaricExpansion:(1-r*s/i)/t,isothermalCompressibility:-n*a/i/e}}var p1=[[0,-9.6927686500217],[1,10.086655968018],[-5,-.005608791128302],[-4,.071452738081455],[-3,-.40710498223928],[-2,1.4240819171444],[-1,-4.383951131945],[2,-.28408632460772],[3,.021268463753307]],m1=[[1,0,-.0017731742473213],[1,1,-.017834862292358],[1,2,-.045996013696365],[1,3,-.057581259083432],[1,6,-.05032527872793],[2,1,-33032641670203e-18],[2,2,-.00018948987516315],[2,4,-.0039392777243355],[2,7,-.043797295650573],[2,36,-26674547914087e-18],[3,0,20481737692309e-21],[3,1,43870667284435e-20],[3,3,-3227767723857e-17],[3,6,-.0015033924542148],[3,35,-.040668253562649],[4,1,-78847309559367e-23],[4,2,12790717852285e-21],[4,3,48225372718507e-20],[5,7,22922076337661e-19],[6,3,-16714766451061e-24],[6,16,-.0021171472321355],[6,35,-23.895741934104],[7,0,-5905956432427e-30],[7,11,-12621808899101e-19],[7,25,-.038946842435739],[8,8,11256211360459e-24],[8,36,-8.2311340897998],[9,13,19809712802088e-21],[10,4,10406965210174e-32],[10,10,-10234747095929e-26],[10,14,-10018179379511e-22],[16,29,-80882908646985e-24],[16,50,.10693031879409],[18,57,-.33662250574171],[20,20,89185845355421e-38],[20,35,30629316876232e-26],[20,48,-42002467698208e-19],[21,21,-59056029685639e-39],[22,53,37826947613457e-19],[23,39,-12768608934681e-28],[24,26,73087610595061e-42],[24,40,55414715350778e-30],[24,58,-9436970724121e-19]];function X0(e,t){let n=e,r=540/t,o=Math.log(n),i=1/n,a=0,f=0;for(let[h,g]of p1)o+=g*Math.pow(r,h),a+=g*h*Math.pow(r,h-1),f+=g*h*(h-1)*Math.pow(r,h-2);let R=0,s=0,l=0,p=0,_=0,m=0;for(let[h,g,b]of m1){let K=Math.pow(n,h),k=r-.5,C0=Math.pow(k,g);R+=b*K*C0,s+=b*h*Math.pow(n,h-1)*C0,l+=b*h*(h-1)*Math.pow(n,h-2)*C0,p+=b*K*g*Math.pow(k,g-1),_+=b*K*g*(g-1)*Math.pow(k,g-2),m+=b*h*Math.pow(n,h-1)*g*Math.pow(k,g-1)}let C=i+s,x=a+p,I=f+_;return{region:S.Region2,pressure:e,temperature:t,specificVolume:.461526*t/(1e3*e)*n*C,internalEnergy:.461526*t*(r*x-n*C),entropy:.461526*(r*x-(o+R)),enthalpy:.461526*t*r*x,cp:-.461526*r*r*I,cv:.461526*(-r*r*I-Math.pow(1+n*s-r*n*m,2)/(1-n*n*l)),speedOfSound:Math.sqrt(1e3*.461526*t*(1+2*n*s+n*n*s*s)/(1-n*n*l+Math.pow(1+n*s-r*n*m,2)/(r*r*I))),quality:null,isobaricExpansion:(1+n*s-r*n*m)/(1+n*s)/t,isothermalCompressibility:(1-n*n*l)/(1+n*s)/e}}var _1=[[0,-13.179983674201],[1,6.8540841634434],[-3,-.024805148933466],[-2,.36901534980333],[-1,-3.1161318213925],[2,-.32961626538917]],R1=[[1,1,.0015736404855259],[1,2,.00090153761673944],[1,3,-.0050270077677648],[2,3,22440037409485e-19],[2,9,-41163275453471e-19],[3,7,37919454822955e-21]];function O0(e,t){let n=e,r=1e3/t,o=Math.log(n),i=1/n,a=0,f=0;for(let[h,g]of _1)o+=g*Math.pow(r,h),a+=g*h*Math.pow(r,h-1),f+=g*h*(h-1)*Math.pow(r,h-2);let R=0,s=0,l=0,p=0,_=0,m=0;for(let[h,g,b]of R1){let K=Math.pow(n,h),k=Math.pow(r,g);R+=b*K*k,s+=b*h*Math.pow(n,h-1)*k,l+=b*h*(h-1)*Math.pow(n,h-2)*k,p+=b*K*g*Math.pow(r,g-1),_+=b*K*g*(g-1)*Math.pow(r,g-2),m+=b*h*Math.pow(n,h-1)*g*Math.pow(r,g-1)}let C=i+s,x=a+p,I=f+_;return{region:S.Region5,pressure:e,temperature:t,specificVolume:.461526*t*n*C/(1e3*e),internalEnergy:.461526*t*(r*x-n*C),entropy:.461526*(r*x-(o+R)),enthalpy:.461526*t*r*x,cp:-.461526*r*r*I,cv:.461526*(-r*r*I-Math.pow(1+n*s-r*n*m,2)/(1-n*n*l)),speedOfSound:Math.sqrt(1e3*.461526*t*(1+2*n*s+n*n*s*s)/(1-n*n*l+Math.pow(1+n*s-r*n*m,2)/(r*r*I))),quality:null,isobaricExpansion:(1+n*s-r*n*m)/(1+n*s)/t,isothermalCompressibility:(1-n*n*l)/(1+n*s)/e}}function B0(e){return Math.abs(e-A)<=n0?A:Math.abs(e-r0)<=n0?r0:Math.abs(e-N)<=n0?N:e}function F0(e){return Math.abs(e-L)<=t0?L:Math.abs(e-o0)<=t0?o0:Math.abs(e-y)<=t0?y:e}var d=[0,1167.0521452767,-724213.16703206,-17.073846940092,12020.82470247,-32325550322333e-7,14.91510861353,-4823.2657361591,405113.40542057,-.23855557567849,650.17534844798];function g0(e){if(e<273.15||e>y)throw new B("Temperature",e,273.15,y);let t=e+d[9]/(e-d[10]),n=t*t+d[1]*t+d[2],r=d[3]*t*t+d[4]*t+d[5],o=d[6]*t*t+d[7]*t+d[8];return B0(Math.pow(2*o/(-r+Math.sqrt(r*r-4*n*o)),4))}function O(e){if(e<A||e>N)throw new B("Pressure",e,A,N);let t=Math.pow(e,.25),n=t*t+d[3]*t+d[6],r=d[1]*t*t+d[4]*t+d[7],o=d[2]*t*t+d[5]*t+d[8],i=2*o/(-r-Math.sqrt(r*r-4*n*o));return F0((d[10]+i-Math.sqrt(Math.pow(d[10]+i,2)-4*(d[9]+d[10]*i)))/2)}function L0(e){if(!Number.isFinite(e)||e<G||e>$)throw new P(`boundary23_P_to_T requires p in [${G}, ${$}] MPa, got ${e}`);return 572.54459862746+Math.sqrt((e-13.91883977887)/.0010192970039326)}function J(e,t,n){let r=0;for(let o=0;o<t.length;o++)r+=n[o]*Math.pow(e,t[o]);return r}function S0(e,t,n){let r=Math.log(e),o=0;for(let i=0;i<t.length;i++)o+=n[i]*Math.pow(r,t[i]);return o}function d0(e){return S0(e,[0,1,2,-1,-2],[1547.93642129415,-187.661219490113,21.3144632222113,-1918.87498864292,918.419702359447])}function U(e){return J(e,[0,1,2,3],[585.276966696349,2.78233532206915,-.0127283549295878,.000159090746562729])}function j(e){return 3.727888004*(e-22.064)+647.096}function u0(e){return J(e,[0,1,2,3,4],[-24928.4240900418,4281.43584791546,-269.02917314013,7.51608051114157,-.0787105249910383])}function f0(e){return J(e,[0,1,2,3,4],[584.814781649163,-.616179320924617,.260763050899562,-.00587071076864459,515308185433082e-19])}function V(e){return J(e,[0,1,2,3,4],[617.229772068439,-7.70600270141675,.697072596851896,-.0157391839848015,.000137897492684194])}function k0(e){return J(e,[0,1,2,3],[535.339483742384,7.61978122720128,-.158365725441648,.00192871054508108])}function $0(e){return S0(e,[0,1,2,-1,-2],[969.461372400213,-332.500170441278,64.2859598466067,773.845935768222,-1523.13732937084])}function J0(e){return J(e,[0,1,2,3],[565.603648239126,5.29062258221222,-.102020639611016,.00122240301070145])}function U0(e){return J(e,[0,1,2,3],[584.561202520006,-1.02961025163669,.243293362700452,-.00294905044740799])}function H0(e){return J(e,[0,1,2,3],[528.199646263062,8.90579602135307,-.222814134903755,.00286791682263697])}function q0(e){return S0(e,[0,1,2,-1,-2],[7.2805260914538,97.3505869861952,14.7370491183191,329.196213998375,873.371668682417])}var x0=[[0,0,1.0658070028513],[0,0,-15.732845290239],[0,1,20.944396974307],[0,2,-7.6867707878716],[0,7,2.6185947787954],[0,10,-2.808078114862],[0,12,1.2053369696517],[0,23,-.0084566812812502],[1,2,-1.2654315477714],[1,6,-1.1524407806681],[1,15,.88521043984318],[1,17,-.64207765181607],[2,0,.38493460186671],[2,2,-.85214708824206],[2,6,4.8972281541877],[2,7,-3.0502617256965],[2,22,.039420536879154],[2,26,.12558408424308],[3,0,-.2799932969871],[3,2,1.389979956946],[3,4,-2.018991502357],[3,16,-.0082147637173963],[3,26,-.47596035734923],[4,0,.0439840744735],[4,2,-.44476435428739],[4,4,.90572070719733],[4,26,.70522450087967],[5,1,.10770512626332],[5,3,-.32913623258954],[5,26,-.50871062041158],[6,0,-.022175400873096],[6,2,.094260751665092],[6,26,.16436278447961],[7,2,-.013503372241348],[8,26,-.014834345352472],[9,2,.00057922953628084],[9,26,.0032308904703711],[10,0,80964802996215e-18],[10,1,-.00016557679795037],[11,26,-44923899061815e-18]],M1=322,g1=647.096;function l0(e,t){if(!Number.isFinite(e)||e<=0)throw new P(`region3ByRhoT requires a finite positive density, got ${e}`);let n=e/M1,r=g1/t,o=1/e,i=x0[0][2],a=i*Math.log(n),f=i/n,R=-i/(n*n),s=0,l=0,p=0;for(let _=1;_<x0.length;_++){let[m,C,x]=x0[_],I=Math.pow(n,m),h=Math.pow(r,C);a+=x*I*h,f+=x*m*Math.pow(n,m-1)*h,R+=x*m*(m-1)*Math.pow(n,m-2)*h,s+=x*I*C*Math.pow(r,C-1),l+=x*I*C*(C-1)*Math.pow(r,C-2),p+=x*m*Math.pow(n,m-1)*C*Math.pow(r,C-1)}return{region:S.Region3,pressure:e*.461526*t*n*f/1e3,temperature:t,specificVolume:o,internalEnergy:.461526*t*r*s,entropy:.461526*(r*s-a),enthalpy:.461526*t*(r*s+n*f),cp:.461526*(-r*r*l+Math.pow(n*f-n*r*p,2)/(2*n*f+n*n*R)),cv:.461526*(-r*r*l),speedOfSound:Math.sqrt(1e3*.461526*t*(2*n*f+n*n*R-Math.pow(n*f-n*r*p,2)/(r*r*l))),quality:null,isobaricExpansion:(f-r*p)/(2*f+n*R)/t,isothermalCompressibility:1/(2*n*f+n*n*R)/e/.461526/t*1e3}}function c(e,t,n){let r=t/e.pStar,o=n/e.tStar,i=e.piExp??1,a=e.sigExp??1,f=0;for(let[s,l,p]of e.IJN)f+=p*Math.pow(r-e.piShift,i*s)*Math.pow(o-e.sigShift,a*l);let R=e.transform??"linear";return R==="pow4"?e.vStar*Math.pow(f,4):R==="exp"?e.vStar*Math.exp(f):e.vStar*f}var S1={pStar:100,tStar:760,vStar:.0024,piShift:.085,sigShift:.817,IJN:[[-12,5,.00110879558823853],[-12,10,572.616740810616],[-12,12,-76705.1948380852],[-10,5,-.0253321069529674],[-10,10,6280.08049345689],[-10,12,234105.654131876],[-8,5,.216867826045856],[-8,8,-156.237904341963],[-8,10,-26989.3956176613],[-6,1,-.000180407100085505],[-5,1,.00116732227668261],[-5,5,26.698704085604],[-5,10,28277.6617243286],[-4,8,-2424.31520029523],[-3,0,.000435217323022733],[-3,1,-.0122494831387441],[-3,3,1.79357604019989],[-3,6,44.2729521058314],[-2,0,-.00593223489018342],[-2,2,.453186261685774],[-2,3,1.3582570312914],[-1,0,.0408748415856745],[-1,1,.474686397863312],[-1,2,1.18646814997915],[0,0,.546987265727549],[0,1,.195266770452643],[1,0,-.0502268790869663],[1,2,-.369645308193377],[2,0,.0063382803752842],[2,2,.0797441793901017]]},d1={pStar:100,tStar:860,vStar:.0041,piShift:.28,sigShift:.779,IJN:[[-12,10,-.0827670470003621],[-12,12,41.6887126010565],[-10,8,.0483651982197059],[-10,14,-29103.2084950276],[-8,8,-111.422582236948],[-6,5,-.0202300083904014],[-6,6,294.002509338515],[-6,8,140.244997609658],[-5,5,-344.384158811459],[-5,8,361.182452612149],[-5,10,-1406.99677420738],[-4,2,-.00202023902676481],[-4,4,171.346792457471],[-4,5,-4.25597804058632],[-3,0,691346085000334e-20],[-3,1,.00151140509678925],[-3,2,-.0416375290166236],[-3,3,-41.3754957011042],[-3,5,-50.6673295721637],[-2,0,-.000572212965569023],[-2,2,6.08817368401785],[-2,5,23.9600660256161],[-1,0,.0122261479925384],[-1,2,2.16356057692938],[0,0,.398198903368642],[0,1,-.116892827834085],[1,0,-.102845919373532],[1,2,-.492676637589284],[2,0,.065554045640679],[3,2,-.24046253507853],[4,0,-.0269798180310075],[4,1,.128369435967012]]},x1={pStar:40,tStar:690,vStar:.0022,piShift:.259,sigShift:.903,IJN:[[-12,6,3.1196778876303],[-12,8,27671.3458847564],[-12,10,322583103403269e-7],[-10,6,-342.416065095363],[-10,8,-899732.529907377],[-10,10,-793892049821251e-7],[-8,5,95.3193003217388],[-8,6,2297.84742345072],[-8,7,175336.675322499],[-6,8,791214365222792e-8],[-5,1,319933345844209e-19],[-5,4,-65.9508863555767],[-5,7,-833426.563212851],[-4,2,.0645734680583292],[-4,8,-382031020570813e-8],[-3,0,406398848470079e-19],[-3,3,31.0327498492008],[-2,0,-.000892996718483724],[-2,4,234.604891591616],[-2,5,3775.15668966951],[-1,0,.0158646812591361],[-1,1,.707906336241843],[-1,2,12.601622514657],[0,0,.736143655772152],[0,1,.676544268999101],[0,2,-17.8100588189137],[1,0,-.156531975531713],[1,2,11.7707430048158],[2,0,.0840143653860447],[2,1,-.186442467471949],[2,3,-44.0170203949645],[2,7,123290423502494e-8],[3,0,-.0240650039730845],[3,7,-107077716660869e-8],[8,1,.0438319858566475]]},P1={pStar:40,tStar:690,vStar:.0029,piShift:.559,sigShift:.939,transform:"pow4",IJN:[[-12,4,-452484847171645e-24],[-12,6,315210389538801e-19],[-12,7,-.00214991352047545],[-12,10,508.058874808345],[-12,12,-127123036845932e-7],[-12,16,115371133120497e-2],[-10,0,-197805728776273e-30],[-10,2,241554806033972e-25],[-10,4,-156481703640525e-20],[-10,6,.00277211346836625],[-10,8,-20.3578994462286],[-10,10,144369489909053e-8],[-10,14,-411254217946539e-4],[-8,3,623449786243773e-20],[-8,7,-22.1774281146038],[-8,8,-68931.5087933158],[-8,10,-195419525060713e-7],[-6,6,3163.73510564015],[-6,8,224040754426988e-8],[-5,1,-436701347922356e-20],[-5,2,-.000404213852833996],[-5,5,-348.153203414663],[-5,7,-385294.213555289],[-4,0,135203700099403e-21],[-4,1,.000134648383271089],[-4,7,125031.835351736],[-3,2,.0968123678455841],[-3,4,225.660517512438],[-2,0,-.000190102435341872],[-2,1,-.0299628410819229],[-1,0,.00500833915372121],[-1,1,.387842482998411],[-1,5,-1385.35367777182],[0,0,.870745245971773],[0,2,1.71946252068742],[1,0,-.0326650121426383],[1,6,4980.44171727877],[3,0,.00551478022765087]]},I1={pStar:40,tStar:710,vStar:.0032,piShift:.587,sigShift:.918,IJN:[[-12,14,715815808404721e-6],[-12,16,-114328360753449e-3],[-10,3,37653100201572e-25],[-10,6,-903983668691157e-19],[-10,10,665695.908836252],[-10,14,535364174960127e-5],[-10,16,794977402335603e-4],[-8,7,92.2230563421437],[-8,8,-142586.073991215],[-8,10,-111796381424162e-8],[-6,6,8961.2162964076],[-5,6,-6699.89239070491],[-4,2,.00451242538486834],[-4,4,-33.9731325977713],[-3,2,-1.20523111552278],[-3,6,47599.2667717124],[-3,7,-266627.750390341],[-2,0,-.000153314954386524],[-2,1,.305638404828265],[-2,3,123.654999499486],[-2,4,-1043.90794213011],[-1,0,-.0157496516174308],[0,0,.685331118940253],[0,1,1.78373462873903],[1,0,-.54467412487891],[1,4,2045.29931318843],[1,6,-22834.2359328752],[2,0,.413197481515899],[2,2,-34.1931835910405]]},y1={pStar:40,tStar:730,vStar:.0064,piShift:.587,sigShift:.891,piExp:.5,transform:"pow4",IJN:[[0,-3,-251756547792325e-22],[0,-2,601307193668763e-20],[0,-1,-.00100615977450049],[0,0,.999969140252192],[0,1,2.14107759236486],[0,2,-16.5175571959086],[1,-1,-.00141987303638727],[1,1,2.69251915156554],[1,2,34.9741815858722],[1,3,-30.0208695771783],[2,0,-1.31546288252539],[2,1,-8.39091277286169],[3,-5,181545608337015e-24],[3,-2,-.000591099206478909],[3,0,1.52115067087106],[4,-3,252956470663225e-19],[5,-8,100726265203786e-29],[5,1,-1.4977453386065],[6,-6,-793940970562969e-24],[7,-4,-.000150290891264717],[7,1,1.51205531275133],[10,-6,470942606221652e-20],[12,-10,195049710391712e-27],[12,-8,-911627886266077e-23],[12,-4,.000604374640201265],[14,-12,-225132933900136e-30],[14,-10,610916973582981e-26],[14,-8,-303063908043404e-21],[14,-6,-137796070798409e-19],[14,-4,-.000919296736666106],[16,-10,639288223132545e-24],[16,-8,753259479898699e-21],[18,-12,-400321478682929e-27],[18,-10,756140294351614e-23],[20,-12,-912082054034891e-26],[20,-10,-237612381140539e-22],[20,-6,269586010591874e-19],[22,-12,-732828135157839e-25],[24,-12,24199557830666e-23],[24,-4,-.000405735532730322],[28,-12,189424143498011e-24],[32,-12,-486632965074563e-24]]},N1={pStar:25,tStar:660,vStar:.0027,piShift:.872,sigShift:.971,transform:"pow4",IJN:[[-12,7,412209020652996e-19],[-12,12,-114987238280587e-8],[-12,14,94818088503208e-4],[-12,18,-195788865718971e3],[-12,22,4962507048713e12],[-12,24,-105549884548496e14],[-10,14,-758642165988278e-3],[-10,20,-922172769596101e8],[-10,24,725379072059348e15],[-8,7,-61.7718249205859],[-8,8,10755.5033344858],[-8,10,-379545802336487e-7],[-8,12,228646846221831e-3],[-6,8,-499741093010619e-8],[-6,22,-280214310054101e16],[-5,7,104915406769586e-8],[-5,20,613754229168619e13],[-4,22,802056715528378e17],[-3,7,-298617819828065e-7],[-2,3,-91.0782540134681],[-2,5,135033.227281565],[-2,14,-712949383408211e4],[-2,24,-104578785289542e22],[-1,2,30.4331584444093],[-1,8,593250797959445e-5],[-1,18,-364174062110798e13],[0,0,.921791403532461],[0,1,-.337693609657471],[0,2,-72.4644143758508],[1,0,-.110480239272601],[1,1,5.36516031875059],[1,3,-2914.41872156205],[3,24,616338176535305e25],[5,22,-12088917586118e25],[6,12,818396024524612e8],[8,3,940781944835829e-6],[10,0,-36727.9669545448],[10,6,-8375139317986550]]},E1={pStar:25,tStar:660,vStar:.0032,piShift:.898,sigShift:.983,transform:"pow4",IJN:[[-12,8,.0561379678887577],[-12,12,774135421587083e-5],[-10,4,111482975877938e-23],[-10,6,-.00143987128208183],[-10,8,1936.9655876492],[-10,10,-605971823585005e-6],[-10,14,171951568124337e-1],[-10,16,-0x41e39802409844],[-8,0,38785116807801e-30],[-8,1,-395464327846105e-28],[-8,6,-170.875935679023],[-8,7,-2120.1062070122],[-8,8,177683337348191e-7],[-6,4,11.0177443629575],[-6,6,-234396.091693313],[-6,8,-656174421999594e-8],[-5,2,156362212977396e-19],[-5,3,-2.129462570214],[-5,4,13.5249306374858],[-4,2,.177189164145813],[-4,4,1394.99167345464],[-3,1,-.00703670932036388],[-3,2,-.152011044389648],[-2,0,981916922991113e-19],[-1,0,.00147199658618076],[-1,2,20.2618487025578],[0,0,.89934551894424],[1,0,-.211346402240858],[1,2,24.9971752957491]]},w1={pStar:25,tStar:660,vStar:.0041,piShift:.91,sigShift:.984,piExp:.5,transform:"pow4",IJN:[[0,0,1.06905684359136],[0,1,-1.48620857922333],[0,10,0xec57e58491b8],[1,-4,-446352055678749e-26],[1,-2,-566620757170032e-21],[1,-1,-.00235302885736849],[1,0,-.269226321968839],[2,0,9.22024992944392],[3,-5,357633505503772e-26],[3,0,-17.3942565562222],[4,-3,700681785556229e-20],[4,-2,-.000267050351075768],[4,-1,-2.31779669675624],[5,-6,-753533046979752e-27],[5,-1,4.81337131452891],[5,12,-223286270422356e7],[7,-4,-118746004987383e-19],[7,-3,.00646412934136496],[8,-6,-410588536330937e-24],[8,10,422739537057241e5],[10,-8,313698180473812e-27],[12,-12,16439533434504e-37],[12,-6,-339823323754373e-20],[12,-4,-.0135268639905021],[14,-10,-723252514211625e-29],[14,-8,184386437538366e-23],[14,-4,-.0463959533752385],[14,5,-99226310037675],[18,-12,688169154439335e-31],[18,-10,-222620998452197e-25],[18,-8,-540843018624083e-22],[18,-6,.00345570606200257],[18,2,422275800304086e-4],[20,-12,-126974478770487e-29],[20,-10,927237985153679e-24],[22,-12,612670812016489e-28],[24,-12,-722693924063497e-26],[24,-8,-.000383669502636822],[32,-10,.000374684572410204],[32,-5,-93197.6897511086],[36,-10,-.0247690616026922],[36,-8,65.8110546759474]]},b1={pStar:25,tStar:670,vStar:.0054,piShift:.875,sigShift:.964,piExp:.5,transform:"pow4",IJN:[[0,-1,-.00011137131739554],[0,0,1.00342892423685],[0,1,5.30615581928979],[1,-2,179058760078792e-20],[1,-1,-.000728541958464774],[1,1,-18.7576133371704],[2,-1,.00199060874071849],[2,1,24.357475537729],[3,-2,-.000177040785499444],[4,-2,-.0025968038522713],[4,2,-198.704578406823],[5,-3,738627790224287e-19],[5,-2,-.00236264692844138],[5,0,-1.61023121314333],[6,3,6223.22971786473],[10,-6,-960754116701669e-23],[12,-8,-510572269720488e-25],[12,-3,.00767373781404211],[14,-10,663855469485254e-29],[14,-8,-717590735526745e-24],[14,-5,146564542926508e-19],[16,-10,309029474277013e-26],[18,-12,-464216300971708e-30],[20,-12,-390499637961161e-28],[20,-10,-236716126781431e-24],[24,-12,454652854268717e-26],[24,-6,-.00422271787482497],[28,-12,283911742354706e-25],[28,-5,2.70929002720228]]},A1={pStar:25,tStar:680,vStar:.0077,piShift:.802,sigShift:.935,IJN:[[-2,10,-401215699576099e-6],[-2,12,484501478318406e-4],[-1,-5,394721471363678e-29],[-1,6,37262.9967374147],[0,-12,-369794374168666e-44],[0,-6,-380436407012452e-29],[0,-2,475361629970233e-21],[0,-1,-.000879148916140706],[0,0,.844317863844331],[0,1,12.24331626566],[0,2,-104.529634830279],[0,3,589.702771277429],[0,14,-291026851164444e-1],[1,-3,17034307284185e-19],[1,-2,-.000277617606975748],[1,0,-3.44709605486686],[1,1,22.1333862447095],[1,2,-194.646110037079],[2,-8,808354639772825e-30],[2,-6,-18084520914547e-24],[2,-3,-696664158132412e-20],[2,-2,-.00181057560300994],[2,0,2.55830298579027],[2,4,3289.13873658481],[5,-12,-173270241249904e-33],[5,-6,-661876792558034e-21],[5,-3,-.0039568892342125],[6,-12,604203299819132e-32],[6,-10,-400879935920517e-28],[6,-8,160751107464958e-23],[6,-5,383719409025556e-19],[8,-12,-649565446702457e-29],[10,-12,-149095328506e-23],[12,-10,541449377329581e-23]]},v1={pStar:24,tStar:650,vStar:.0026,piShift:.908,sigShift:.989,transform:"pow4",IJN:[[-12,14,260702058647537e-5],[-12,16,-0xab3cb46fab60],[-12,18,554923870289667e4],[-12,20,-758966946387758e8],[-12,22,413865186848908e12],[-10,14,-81503800073806e-2],[-10,24,-381458260489955e18],[-8,6,-.0123239564600519],[-8,10,226095631437174e-7],[-8,12,-49501780950672e-2],[-8,14,5294829964228630],[-8,18,-444359478746295e8],[-8,24,521635864527315e20],[-8,36,-487095672740742e40],[-6,8,-714430.209937547],[-5,4,.127868634615495],[-5,5,-10.0752127917598],[-4,7,77745143796099e-7],[-4,16,-108105480796471e10],[-3,1,-357578581169659e-20],[-3,3,-2.12857169423484],[-3,18,270706111085238e15],[-3,20,-695953622348829e18],[-2,2,.11060902747228],[-2,3,72.1559163361354],[-2,10,-306367307532219],[-1,0,26583961888553e-18],[-1,1,.0253392392889754],[-1,3,-214.443041836579],[0,0,.937846601489667],[0,1,2.231840431017],[0,2,33.8401222509191],[0,12,494237237179718e6],[1,0,-.198068404154428],[1,16,-14141534988114e17],[2,1,-99.3862421613651],[4,0,125.070534142731],[5,0,-996.473529004439],[5,1,47313.7909872765],[6,14,116662121219322e18],[10,4,-0xb38ddbd8a7ec2],[10,12,-445703369196945e18],[14,10,642794932373694e18]]},X1={pStar:23,tStar:650,vStar:.0028,piShift:1,sigShift:.997,sigExp:.25,IJN:[[0,0,.811384363481847],[3,0,-5681.99310990094],[8,0,-178657198172556e-4],[20,2,795537657613427e17],[1,5,-81456.8209346872],[3,5,-659774567602874e-7],[4,5,-152861148659302e-4],[5,5,-560165667510446e-3],[1,6,458384.828593949],[6,6,-385754000383848e-1],[2,7,453735800004273e-7],[4,8,939454935735563e-3],[14,8,266572856432938e13],[2,10,-547578313899097e-5],[5,10,0xb68f181cb242],[3,12,185007245563239e-2],[0,14,185135446828337e-6],[1,14,-170451090076385e-3],[1,18,0x8f99b72e5e6e],[1,20,-0x7320116e5c57c],[28,20,36819392618357e46],[2,22,170215539458936e3],[16,22,639234909918741e27],[0,24,-821698160721956],[5,24,-795260241872306e9],[0,28,23341586947851e4],[3,28,-600079934586803e8],[4,28,594584382273384e10],[12,28,189461279349492e25],[16,28,-810093428842645e31],[1,32,188813911076809e7],[8,32,111052244098768e21],[14,32,291133958602503e31],[0,36,-32942192395146e8],[2,36,-137570282536696e11],[3,36,181508996303902e13],[4,36,-346865122768353e15],[8,36,-21196114177426e24],[14,36,-128617899887675e34],[24,36,479817895699239e50]]},O1={pStar:23,tStar:650,vStar:.0031,piShift:.976,sigShift:.997,transform:"exp",IJN:[[0,-12,280967799943151e-53],[3,-12,614869006573609e-45],[4,-12,582238667048942e-42],[6,-12,390628369238462e-37],[7,-12,821445758255119e-35],[10,-12,402137961842776e-29],[12,-12,651718171878301e-27],[14,-12,-211773355803058e-22],[18,-12,.00264953354380072],[0,-10,-135031446451331e-46],[3,-10,-607246643970893e-38],[5,-10,-402352115234494e-33],[6,-10,-744938506925544e-31],[8,-10,189917206526237e-27],[12,-10,364975183508473e-20],[0,-8,177274872361946e-40],[3,-8,-334952758812999e-33],[7,-8,-421537726098389e-23],[12,-8,-.0391048167929649],[2,-6,541276911564176e-28],[3,-6,705412100773699e-26],[4,-6,258585887897486e-23],[2,-5,-493111362030162e-25],[4,-5,-158649699894543e-20],[7,-5,-.5250374278861],[4,-4,.00220019901729615],[3,-3,-.00643064132636925],[5,-3,62.9154149015048],[6,-3,135.147318617061],[0,-2,240560808321713e-21],[0,-1,-.000890763306701305],[3,-1,-4402.09599407714],[1,0,-302.807107747776],[0,1,1591.58748314599],[1,1,232534.272709876],[0,2,-792681.2071326],[1,4,-869871364662769e-4],[0,5,354542769185671e-3],[1,6,400849240129329]]},B1={pStar:23,tStar:650,vStar:.0034,piShift:.974,sigShift:.996,piExp:.5,IJN:[[0,-12,128746023979718e-49],[0,-4,-735234770382342e-26],[0,-1,.0028907869214915],[2,-1,.244482731907223],[3,-10,141733492030985e-38],[4,-12,-354533853059476e-43],[4,-8,-594539202901431e-32],[4,-5,-585188401782779e-23],[4,-4,201377325411803e-20],[4,-1,1.38647388209306],[5,-4,-173959365084772e-19],[5,-3,.00137680878349369],[6,-8,814897605805513e-29],[7,-12,425596631351839e-40],[8,-10,-387449113787755e-32],[8,-8,13981473024e-23],[8,-4,-.00171849638951521],[10,-12,641890529513296e-36],[10,-8,118960578072018e-25],[14,-12,-155282762571611e-32],[14,-8,233907907347507e-22],[20,-12,-174093247766213e-27],[20,-10,377682649089149e-23],[24,-12,-516720236575302e-25]]},F1={pStar:23,tStar:650,vStar:.0041,piShift:.972,sigShift:.997,piExp:.5,IJN:[[0,-1,-982825342010366e-19],[0,0,1.05145700850612],[0,1,116.033094095084],[0,2,3246.64750281543],[1,1,-1235.92348610137],[2,-1,-.0561403450013495],[3,-3,856677401640869e-22],[3,0,236.313425393924],[4,-2,.00972503292350109],[6,-2,-1.03001994531927],[7,-5,-149653706199162e-23],[7,-4,-215743778861592e-19],[8,-2,-8.34452198291445],[10,-3,.586602660564988],[12,-12,343480022104968e-40],[12,-6,816256095947021e-20],[12,-5,.00294985697916798],[14,-10,711730466276584e-31],[14,-8,400954763806941e-24],[14,-3,10.7766027032853],[16,-8,-409449599138182e-21],[18,-8,-729121307758902e-20],[20,-10,677107970938909e-23],[22,-10,602745973022975e-22],[24,-12,-382323011855257e-25],[24,-8,.00179946628317437],[36,-12,-.000345042834640005]]},L1={pStar:23,tStar:650,vStar:.0022,piShift:.848,sigShift:.983,transform:"pow4",IJN:[[-12,10,-82043.384325995],[-12,12,473271518461586e-4],[-10,6,-.0805950021005413],[-10,7,32.860002543598],[-10,8,-3566.1702998249],[-10,10,-172985781433335e-5],[-8,8,351769232729192e-7],[-6,6,-775489.259985144],[-5,2,710346691966018e-19],[-5,5,99349.9883820274],[-4,3,-.64209417190457],[-4,4,-6128.42816820083],[-3,3,232.808472983776],[-2,0,-142808220416837e-19],[-2,1,-.00643596060678456],[-2,2,-4.28577227475614],[-2,4,2256.89939161918],[-1,0,.0010035565172151],[-1,1,.333491455143516],[-1,2,1.09697576888873],[0,0,.961917379376452],[1,0,-.0838165632204598],[1,1,2.47795908411492],[1,3,-3191.14969006533]]},k1={pStar:23,tStar:650,vStar:.0054,piShift:.874,sigShift:.982,IJN:[[-8,6,.00144165955660863],[-8,14,-701438599628258e-2],[-3,-3,-830946716459219e-31],[-3,3,.261975135368109],[-3,4,393.097214706245],[-3,5,-10433.4030654021],[-3,8,490112654154211e-6],[0,-1,-.000147104222772069],[0,0,1.03602748043408],[0,1,3.05308890065089],[0,5,-399745276971264e-8],[3,-6,56923371959375e-25],[3,-2,-.0464923504407778],[8,-12,-535400396512906e-32],[8,-10,399988795693162e-27],[8,-8,-536479560201811e-21],[8,-5,.0159536722411202],[10,-12,270303248860217e-29],[10,-10,244247453858506e-22],[10,-8,-983430636716454e-20],[10,-6,.0663513144224454],[10,-5,-9.93456957845006],[10,-4,546.491323528491],[10,-3,-14336.5406393758],[10,-2,150764.974125511],[12,-12,-337209709340105e-24],[14,-12,377501980025469e-23]]},$1={pStar:21,tStar:640,vStar:.0022,piShift:.886,sigShift:.99,transform:"pow4",IJN:[[-12,20,-532466612140254e8],[-12,24,100415480000824e17],[-10,22,-191540001821367e15],[-8,14,0x2585ef7d1adcdc],[-6,36,202281884477061e44],[-5,8,884585472596134e-7],[-5,16,166540181638363e8],[-4,6,-313563.197669111],[-4,32,-185662327545324e39],[-3,3,-.0624942093918942],[-3,8,-50416072413259e-4],[-2,4,18751.4491833092],[-1,1,.00121399979993217],[-1,2,1.88317043049455],[-1,3,-1670.7350396206],[0,0,.965961650599775],[0,1,2.94885696802488],[0,4,-65391.5627346115],[0,28,604012200163444e35],[1,0,-.198339358557937],[1,32,-175984090163501e43],[3,0,3.56314881403987],[3,1,-575.991255144384],[3,2,45621.3415338071],[4,3,-109174044987829e-7],[4,18,437796099975134e19],[4,24,-616552611135792e31],[5,4,193568768917797e-5],[14,24,950898170425042e39]]},J1={pStar:20,tStar:650,vStar:.0088,piShift:.803,sigShift:1.02,IJN:[[0,0,1.55287249586268],[0,1,6.64235115009031],[0,4,-2893.6623672721],[0,12,-385923202309848e-2],[1,0,-2.91002915783761],[1,10,-829088246858083e-3],[2,0,1.76814899675218],[2,6,-534686695713469e-6],[2,14,160464608687834e3],[3,3,196435.366560186],[3,8,156637427541729e-2],[4,0,-1.78154560260006],[4,10,-0x82987a4d20778],[7,3,385659001648006e-7],[7,4,110554446790543e-5],[7,7,-677073830687349e-1],[7,20,-327910592086523e16],[7,36,-341552040860644e36],[10,10,-527251339709047e6],[10,12,245375640937055e9],[10,14,-168776617209269e12],[10,16,358958955867578e14],[10,22,-656475280339411e21],[18,18,355286045512301e24],[20,32,56902145441327e44],[22,22,-700584546433113e33],[22,36,-705772623326374e50],[24,24,166861176200148e38],[28,28,-300475129680486e46],[32,22,-668481295196808e36],[32,32,428432338620678e54],[32,36,-444227367758304e57],[36,36,-281396013562745e62]]},U1={pStar:23,tStar:650,vStar:.0026,piShift:.902,sigShift:.988,IJN:[[-12,14,122088349258355e3],[-10,10,104216468608488e-5],[-10,12,-8826669315646520],[-10,14,259929510849499e5],[-8,10,0xca77139f8c43],[-8,12,-878473585050085e3],[-8,14,-314432577551552e7],[-6,8,-216934916996285e-2],[-6,12,159079648196849e6],[-5,4,-339.567617303423],[-5,8,884387651337836e-2],[-5,12,-843405926846418e6],[-3,2,11.4178193518022],[-1,-1,-.000122708229235641],[-1,1,-106.201671767107],[-1,12,903443213959313e10],[-1,14,-693996270370852e13],[0,-3,648916718965575e-23],[0,1,7189.57567127851],[1,-2,.00105581745346187],[2,5,-651903203602581],[2,10,-160116813274676e10],[3,-5,-510254294237837e-23],[5,-4,-.152355388953402],[5,2,677143292290144e-3],[5,3,0xfb5d5ea4a5b2],[6,-5,.0116862983141686],[6,2,-301426947980171e-1],[8,-8,16971981388484e-21],[8,8,104674840020929e12],[10,-4,-10801.690456014],[12,-12,-990623601934295e-27],[12,-4,536116483602738e-8],[12,4,226145963747881e7],[14,-12,-48873156577621e-23],[14,-10,15100154888067e-18],[14,-6,-22770.046464392],[14,6,-781754507698846e13]]},H1={pStar:23,tStar:650,vStar:.0031,piShift:.96,sigShift:.995,IJN:[[-10,-8,-415652812061591e-69],[-8,-12,177441742924043e-75],[-6,-12,-357078668203377e-69],[-6,-3,359252213604114e-40],[-6,5,-25.9123736380269],[-6,6,59461.976619346],[-6,8,-624184007103158e-4],[-6,10,0x6f3a7cc64429a0],[-5,1,105006446192036e-23],[-5,2,-192824336984852e-20],[-5,6,654144.373749937],[-5,8,513117462865044e-2],[-5,10,-697595750347391e4],[-5,14,-103977184454767e14],[-4,-12,119563135540666e-62],[-4,-10,-436677034051655e-56],[-4,-6,926990036530639e-44],[-4,10,587793105620748e6],[-3,-3,280375725094731e-32],[-3,10,-192359972440634e8],[-3,12,742705723302738e12],[-2,2,-51.7429682450605],[-2,4,820612048645469e-8],[-1,-2,-188214882341448e-23],[-1,0,.0184587261114837],[0,-2,-135830407782663e-20],[0,6,-72368188562634800],[0,10,-223449194054124e12],[1,-12,-111526741826431e-49],[1,-10,276032601145151e-43],[3,3,0x7aa6b9468aed],[4,-6,65244029334586e-23],[4,3,51065511977436e3],[4,10,-468138358908732e17],[5,2,-7606674911832790],[8,-12,-417247986986821e-33],[10,-2,312545677756104e-1],[12,-3,-0x5b4a741e82fa],[14,1,247761392329058e12]]},q1={pStar:23,tStar:650,vStar:.0039,piShift:.959,sigShift:.995,transform:"pow4",IJN:[[-12,8,-586219133817016e-22],[-12,14,-894460355005526e-4],[-10,-1,531168037519774e-45],[-10,8,.109892402329239],[-8,6,-.0575368389425212],[-8,8,22827.6853990249],[-8,14,-158548609655002e4],[-6,-4,329865748576503e-42],[-6,-3,-634987981190669e-39],[-6,2,615762068640611e-23],[-6,8,-961109240985747e-7],[-5,-10,-406274286652625e-59],[-4,-1,-471103725498077e-27],[-4,3,.725937724828145],[-3,-10,187768525763682e-53],[-3,3,-1033.08436323771],[-2,1,-.0662552816342168],[-2,2,579.51404176571],[-1,-8,237416732616644e-41],[-1,-4,271700235739893e-29],[-1,1,-90.788621349836],[0,-12,-171242509570207e-51],[0,1,156.792067854621],[1,-1,.92326135790147],[2,-1,-5.97865988422577],[2,2,321988767636389e-8],[3,-12,-399441390042203e-44],[3,-5,493429086046981e-22],[5,-10,812036983370565e-34],[5,-8,-207610284654137e-26],[5,-6,-340821291419719e-21],[8,-12,542000573372233e-32],[8,-10,-856711586510214e-27],[10,-12,266170454405981e-28],[10,-8,858133791857099e-20]]},K1={pStar:23,tStar:650,vStar:.0049,piShift:.91,sigShift:.988,IJN:[[-8,14,377373741298151e4],[-6,10,-507100883722913e-2],[-5,10,-0x3ac1543725378],[-4,1,184790814320773e-20],[-4,2,-.000924729378390945],[-4,14,-425999562292738e9],[-3,-2,-462307771873973e-27],[-3,12,107319065855767e7],[-1,5,648662492280682e-4],[0,0,2.44200600688281],[0,4,-851535733484258e-5],[0,10,169894481433592e7],[1,-10,21578022250902e-40],[1,-1,-.320850551367334],[2,6,-38264244845861e3],[3,-12,-275386077674421e-43],[3,0,-563199.253391666],[3,8,-326068646279314e6],[4,3,397949001553184e-1],[5,-6,100824008584757e-21],[5,-2,16223.4569738433],[5,1,-432355225319745e-4],[6,1,-59287424559861e-2],[8,-6,1.33061647281106],[8,-3,157338197797544e-8],[8,1,258189614270853e-1],[8,8,262413209706358e10],[10,-8,-.0920011937431142],[12,-10,.00220213765905426],[12,-8,-11.0433759109547],[12,-5,847004870612087e-8],[12,-4,-592910695762536e-6],[14,-12,-18302717326966e-18],[14,-10,.181339603516302],[14,-8,-1192.28759669889],[14,-6,430867658061468e-8]]},D1={pStar:22,tStar:650,vStar:.0031,piShift:.996,sigShift:.994,transform:"pow4",IJN:[[0,-3,-525597995024633e-24],[0,1,5834.41305228407],[0,5,-0x2fe21365d014f4],[0,8,118973500934212e11],[1,8,-159096490904708e12],[2,-4,-315839902302021e-21],[2,-1,496.212197158239],[2,4,327777227273171e4],[2,5,-527114657850696e7],[3,-8,210017506281863e-31],[3,4,705106224399834e6],[3,8,-266713136106469e16],[4,-6,-145370512554562e-22],[4,6,14933391705313e14],[5,-2,-149795620287641e-7],[5,1,-3818819062711e3],[8,-8,724660165585797e-19],[8,-2,-937808169550193e-1],[10,-5,514411468376383e-5],[12,-8,-82819.8594040141]]},T1={pStar:22,tStar:650,vStar:.0038,piShift:.993,sigShift:.994,transform:"pow4",IJN:[[-8,3,24400789229065e-24],[-6,6,-463057430331242e-8],[-5,6,728803274777712e-5],[-5,8,0xba51bacfa1810],[-4,5,-110598170118409e-5],[-4,6,-323899915729957e-2],[-4,8,9238140070232450],[-3,-2,842250080413712e-27],[-3,5,663221436245506e-3],[-3,6,-0x980a5797f80b],[-2,2,2537.49358701391],[-1,-6,-819731559610523e-35],[0,3,328380587890663e-3],[1,1,-625004791171543e-7],[2,6,803197957462023e6],[3,-6,-204397011338353e-25],[3,-2,-3783.91047055938],[6,-6,.0097287654593862],[6,-5,15.4355721681459],[6,-4,-3739.62862928643],[6,-1,-682859011374572e-4],[8,-8,-.000248488015614543],[8,-4,394536049497068e-8]]},u={A:S1,B:d1,C:x1,D:P1,E:I1,F:y1,G:N1,H:E1,I:w1,J:b1,K:A1,L:v1,M:X1,N:O1,O:B1,P:F1,Q:L1,R:k1,S:$1,T:J1,U:U1,V:H1,W:q1,X:K1,Y:D1,Z:T1};var G1=19.00881189173929;function K0(e,t){if(e>40)return t<=d0(e)?c(u.A,e,t):c(u.B,e,t);if(e>25){let o=U(e),i=d0(e),a=j(e);return t<=o?c(u.C,e,t):t<=i?c(u.D,e,t):t<=a?c(u.E,e,t):c(u.F,e,t)}if(e>23.5){let o=U(e),i=u0(e),a=j(e),f=f0(e),R=V(e);return t<=o?c(u.C,e,t):t<=i?c(u.G,e,t):t<=a?c(u.H,e,t):t<=f?c(u.I,e,t):t<=R?c(u.J,e,t):c(u.K,e,t)}if(e>23){let o=U(e),i=u0(e),a=j(e),f=f0(e),R=V(e);return t<=o?c(u.C,e,t):t<=i?c(u.L,e,t):t<=a?c(u.H,e,t):t<=f?c(u.I,e,t):t<=R?c(u.J,e,t):c(u.K,e,t)}if(e>22.5){let o=U(e),i=u0(e),a=k0(e),f=j(e),R=$0(e),s=f0(e),l=V(e);return t<=o?c(u.C,e,t):t<=i?c(u.L,e,t):t<=a?c(u.M,e,t):t<=f?c(u.N,e,t):t<=R?c(u.O,e,t):t<=s?c(u.P,e,t):t<=l?c(u.J,e,t):c(u.K,e,t)}let r=g0(643.15);if(e>r&&e<=22.5){let o=U(e),i=J0(e),a=U0(e),f=V(e);if(t<=o)return c(u.C,e,t);if(t<=i)return c(u.Q,e,t);if(t<=a){let R=j(e),s=q0(e),l=H0(e);if(e>22.11)return t<=l?c(u.U,e,t):t<=R?c(u.V,e,t):t<=s?c(u.W,e,t):c(u.X,e,t);if(e>N)return t<=l?c(u.U,e,t):t<=R?c(u.Y,e,t):t<=s?c(u.Z,e,t):c(u.X,e,t);let p=O(e);return t>p?e<=21.90096265?c(u.X,e,t):t<=s?c(u.Z,e,t):c(u.X,e,t):e<=21.93161551?c(u.U,e,t):t<=l?c(u.U,e,t):c(u.Y,e,t)}return t<=f?c(u.R,e,t):c(u.K,e,t)}if(e>20.5&&e<=r){let o=U(e),i=O(e),a=V(e);return t<=o?c(u.C,e,t):t<=i?c(u.S,e,t):t<=a?c(u.R,e,t):c(u.K,e,t)}if(e>=G1&&e<=20.5){let o=U(e),i=O(e);return t<=i?t<o&&t<i?c(u.C,e,t):c(u.S,e,t):c(u.T,e,t)}if(e>16.5291642526){let o=O(e);return t<=o?c(u.C,e,t):c(u.T,e,t)}throw new P("Region 3 v(P,T): pressure out of range")}function D0(e,t,n,r){let o=r?.tolerance??1e-7,i=r?.maxIterations??50,a=r?.h??1e-4,f=r?.epsilon??2220446049250313e-31,R=1/a,s=t;for(let l=0;l<i;l++){let p=e(s);if(!Number.isFinite(p))throw new T("newtonRaphson",l+1);if(p===0)return s;let _;if(n)_=n(s);else{let C=e(s+a),x=e(s-a),I=e(s+2*a);_=(e(s-2*a)-I+8*(C-x))*R/12}if(!Number.isFinite(_)||Math.abs(_)<=f*Math.max(1,Math.abs(p)))throw new T("newtonRaphson",l+1);let m=s-p/_;if(!Number.isFinite(m))throw new T("newtonRaphson",l+1);if(Math.abs(m-s)<=o*Math.max(1,Math.abs(m)))return m;s=m}throw new T("newtonRaphson",i)}function T0(e,t){if(e===N&&t===y)return l0(F,t);let n=K0(e,t),r=D0(a=>!Number.isFinite(a)||a<=0?Number.NaN:l0(a,t).pressure-e,1/n),o=l0(r,t),i=Math.abs(o.pressure-e)/e;if(i>1e-6)throw new P(`solveRegion3PTBasic: density solve did not converge \u2014 target P=${e} MPa, got P=${o.pressure.toFixed(6)} MPa (relErr=${i.toExponential(2)})`);return o}function G0(e,t){if(t>a0&&t<=A0&&e>=A&&e<=Z)return S.Region5;if(e>=A&&e<=G){let n=O(e);if(t>=L&&t<=n)return S.Region1;if(t>n&&t<=M0)return S.Region2}else if(e>G&&e<=$){let n=L0(e);if(t>=L&&t<=s0)return S.Region1;if(t>s0&&t<n)return S.Region3;if(t>=n&&t<=M0)return S.Region2}return-1}function w(e,t){if(typeof t!="number"||!Number.isFinite(t))throw new P(`${e} must be a finite number`)}function z(e,t){if(t<=0)throw new P(`${e} must be greater than 0`)}function p0(e,t){if(t<0)throw new P(`${e} must be greater than or equal to 0`)}var j1=[1.67752,2.20462,.6366564,-.241605],V1=[.520094,.0850895,-1.08374,-.289555,0,0,.222531,.999115,1.88797,1.26613,0,.120573,-.281378,-.906851,-.772479,-.489837,-.25704,0,.161913,.257399,0,0,0,0,-.0325372,0,0,.0698452,0,0,0,0,0,0,.00872102,0,0,0,0,-.00435673,0,-593264e-9];function V0(e,t){w("Temperature",e),w("Density",t),z("Temperature",e),p0("Density",t);let n=e/y,r=t/F,o=0;for(let s=0;s<4;s++)o+=j1[s]/Math.pow(n,s);let i=100*Math.sqrt(n)/o,a=0;for(let s=0;s<6;s++){let l=Math.pow(1/n-1,s),p=0;for(let _=0;_<7;_++)p+=V1[_*6+s]*Math.pow(r-1,_);a+=l*p}let f=Math.exp(r*a);return i*f*1/1e6}var z1=[.002443221,.01323095,.006770357,-.003454586,.0004096266],W1=[1.60397357,-.646013523,.111443906,.102997357,-.0504123634,.00609859258,2.33771842,-2.78843778,1.53616167,-.463045512,.0832827019,-.00719201245,2.19650529,-4.54580785,3.55777244,-1.40944978,.275418278,-.0205938816,-1.21051378,1.60812989,-.621178141,.0716373224,0,0,-2.720337,4.57586331,-3.18369245,1.1168348,-.19268305,.012913842],P0=[[.310559006,[6.53786807199516,-5.61149954923348,3.39624167361325,-2.27492629730878,10.2631854662709,1.97815050331519]],[.776397516,[6.52717759281799,-6.30816983387575,8.08379285492595,-9.82240510197603,12.1358413791395,-5.54349664571295]],[1.242236025,[5.35500529896124,-3.96415689925446,8.91990208918795,-12.033872950579,9.19494865194302,-2.16866274479712]],[1.863354037,[1.55225959906681,.464621290821181,8.93237374861479,-11.0321960061126,6.1678099993336,-.965458722086812]],[1/0,[1.11999926419994,.595748562571649,9.8895256507892,-10.325505114704,4.66861294457414,-.503243546373828]]];function z0(e,t,n,r,o,i){w("Temperature",e),w("Density",t),z("Temperature",e),p0("Density",t),n!==void 0&&w("Isobaric heat capacity",n),r!==void 0&&(w("Isochoric heat capacity",r),z("Isochoric heat capacity",r)),o!==void 0&&w("Isothermal density derivative",o),i!==void 0&&(w("Dynamic viscosity",i),z("Dynamic viscosity",i));let a=e/y,f=t/F,R=0;for(let m=0;m<5;m++)R+=z1[m]/Math.pow(a,m);let s=Math.sqrt(a)/R,l=0;for(let m=0;m<5;m++){let C=Math.pow(1/a-1,m),x=0;for(let I=0;I<6;I++)x+=W1[m*6+I]*Math.pow(f-1,I);l+=C*x}let p=Math.exp(f*l),_=0;return n!==void 0&&r!==void 0&&o!==void 0&&i!==void 0&&(_=Y1(a,f,n,r,o,i)),(s*p+_)/1e3}function Y1(e,t,n,r,o,i){let a=P0[P0.length-1][1];for(let[C,x]of P0)if(t<=C){a=x;break}let f=0;for(let C=0;C<6;C++)f+=a[C]*Math.pow(t,C);let R=1/f*(F/N),s=t*(N/F*o-N/F*R*1.5/e);s<0&&(s=0);let p=.13*Math.pow(s/.06,.63/1.239)/.4,_;if(p<12e-8)_=0;else{let C=n/r;_=2/(Math.PI*p)*((1-1/C)*Math.atan(p)+p/C-(1-Math.exp(-1/(1/p+p*p/(3*t*t)))))}let m=i*1e6;return 177.8514*t*(n/w0)*e/m*_}function W0(e){if(w("Temperature",e),e<273.15||e>y)return null;let t=1-e/y;return .2358*Math.pow(t,1.256)*(1-.625*t)}var Z1=[.978224486826,-.957771379375,.237511794148,.714692244396,-.298217036956,-.108863472196,.0949327488264,-.00980469816509,16516763497e-15,937359795772e-16,-12317921872e-20],Q1=[1,1,1,2,3,3,4,5,6,7,10],e2=[.25,1,2.5,1.5,1.5,2.5,2,2,5,.5,10];function Y0(e,t){w("Temperature",e),w("Density",t),z("Temperature",e),p0("Density",t);let n=.018015268,r=t/n,o=r/(F/n),i=1636e-43,a=60221367e16,f=6138e-33,R=1/(4e-7*Math.PI*299792458**2),s=1380658e-29,l=0;for(let m=0;m<11;m++)l+=Z1[m]*Math.pow(o,Q1[m])*Math.pow(y/e,e2[m]);l=1+l+.00196096504426*o*Math.pow(e/228-1,-1.2);let p=a*f*f*r*l/(R*s*e),_=a*i*r/(3*R);return(1+p+5*_+Math.sqrt(9+2*p+18*_+p*p+10*p*_+9*_*_))/(4-4*_)}function j0(e){return Math.log(e)/Math.LN10}function Z0(e,t){if(w("Temperature",e),w("Density",t),z("Temperature",e),p0("Density",t),e<273.15||e>1273.15)return null;let n=t/1e3,r=6,o=18.015268,i=.61415+48251.33/e-67707.93/(e*e)+10102100/(e*e*e),a=n*Math.exp(-.702132+8681.05/e-24145.1*Math.pow(n,2/3)/(e*e)),f=.813876-51.4471/e-.46992*n;return-2*r*(j0(1+a)-a/(a+1)*n*f)+i+2*j0(o/1e3)}function t2(e){let t=e.region===S.Region4&&e.quality!==null&&e.quality>0&&e.quality<1,n=1/e.specificVolume,r=t?null:V0(e.temperature,n),o=e.isothermalCompressibility===null?void 0:n*e.isothermalCompressibility,i=e.cp??void 0,a=e.cv??void 0;return{...e,density:n,viscosity:r,thermalConductivity:t?null:z0(e.temperature,n,i,a,o,r??void 0),surfaceTension:e.region===S.Region4?W0(e.temperature):null,dielectricConstant:t?null:Y0(e.temperature,n),ionizationConstant:t?null:Z0(e.temperature,n)}}function Q0(e,t){if(w("Pressure",e),w("Temperature",t),e<A||e>$)throw new B("Pressure",e,A,$);if(t<L||t>i0)throw new B("Temperature",t,L,i0);if(t>a0&&e>Z)throw new B("Pressure",e,A,Z);if(Math.abs(t-y)<b0&&Math.abs(e-N)<1e-9)throw new P(`solvePT does not support the exact critical point P=${N} MPa, T=${y} K because derivative properties become singular`);let n=G0(e,t),r;switch(n){case S.Region1:r=v0(e,t);break;case S.Region2:r=X0(e,t);break;case S.Region3:r=T0(e,t);break;case S.Region5:r=O0(e,t);break;default:throw new P(`Cannot determine region for P=${e} MPa, T=${t} K`)}return t2(r)}var n2=[0,1,2,3,4,5,6,7,8,9],r2=8;function H(e){if(!Number.isFinite(e))return e;for(let t of n2){let n=10**t,r=Math.round(e*n)/n,o=r2*Number.EPSILON*Math.max(1,Math.abs(e),Math.abs(r));if(Math.abs(e-r)<=o)return Object.is(r,-0)?0:r}return Object.is(e,-0)?0:e}function X(e){return e===null?null:H(e)}function e1(e){return{region:e.region,pressure:H(e.pressure),temperature:H(e.temperature),specificVolume:H(e.specificVolume),internalEnergy:H(e.internalEnergy),entropy:H(e.entropy),enthalpy:H(e.enthalpy),cp:X(e.cp),cv:X(e.cv),speedOfSound:X(e.speedOfSound),quality:X(e.quality),isobaricExpansion:X(e.isobaricExpansion),isothermalCompressibility:X(e.isothermalCompressibility)}}function o2(e){return{...e1(e),density:H(e.density),viscosity:X(e.viscosity),thermalConductivity:X(e.thermalConductivity),surfaceTension:X(e.surfaceTension),dielectricConstant:X(e.dielectricConstant),ionizationConstant:X(e.ionizationConstant)}}function t1(e){return"density"in e?o2(e):e1(e)}function i2(e){return t1(e)}function n1(e,t){return i2(Q0(e,t))}var E=e=>document.querySelector(e),e0=E("#pressure"),y0=E("#pressureUnit"),_0=E("#temperature"),N0=E("#temperatureUnit"),Q=E("#calculateBtn"),s2=E("#resetBtn"),W=E("#copyBtn"),E0=E("#csvBtn"),o1=E("#resultPanel"),i1=E("#emptyState"),m0=E("#errorBox"),a2=E("#phaseName"),c2=E("#phaseMeta"),u2=E("#inputSummary"),f2=E("#saturationInfo"),l2=E("#propertyGrid"),p2=E("#detailTableBody"),R0=E("#calcStatus"),m2=611657e-9,I0=22.064,_2=647.096,Y=[],v=null,R2=[{key:"density",label:"\u5BC6\u5EA6",symbol:"\u03C1",unit:"kg/m\xB3",digits:6,featured:!0},{key:"specificVolume",label:"\u6BD4\u5BB9",symbol:"v",unit:"m\xB3/kg",digits:9,featured:!0},{key:"enthalpy",label:"\u6BD4\u7113",symbol:"h",unit:"kJ/kg",digits:6,featured:!0},{key:"entropy",label:"\u6BD4\u71B5",symbol:"s",unit:"kJ/(kg\xB7K)",digits:8,featured:!0},{key:"internalEnergy",label:"\u6BD4\u5185\u80FD",symbol:"u",unit:"kJ/kg",digits:6},{key:"cp",label:"\u5B9A\u538B\u6BD4\u70ED\u5BB9",symbol:"c\u209A",unit:"kJ/(kg\xB7K)",digits:8},{key:"cv",label:"\u5B9A\u5BB9\u6BD4\u70ED\u5BB9",symbol:"c\u1D65",unit:"kJ/(kg\xB7K)",digits:8},{key:"speedOfSound",label:"\u58F0\u901F",symbol:"w",unit:"m/s",digits:6},{key:"viscosity",label:"\u52A8\u529B\u9ECF\u5EA6",symbol:"\u03BC",unit:"Pa\xB7s",digits:12},{key:"thermalConductivity",label:"\u5BFC\u70ED\u7CFB\u6570",symbol:"\u03BB",unit:"W/(m\xB7K)",digits:9},{key:"isobaricExpansion",label:"\u7B49\u538B\u4F53\u81A8\u80C0\u7CFB\u6570",symbol:"\u03B1\u1D65",unit:"1/K",digits:12},{key:"isothermalCompressibility",label:"\u7B49\u6E29\u538B\u7F29\u7CFB\u6570",symbol:"\u03BA\u209C",unit:"1/MPa",digits:12},{key:"dielectricConstant",label:"\u9759\u6001\u4ECB\u7535\u5E38\u6570",symbol:"\u03B5",unit:"\u2014",digits:8},{key:"ionizationConstant",label:"\u6C34\u79BB\u5B50\u79EF\u6307\u6570",symbol:"pK\u1D65",unit:"\u2014",digits:8}];function h2(e,t){return t==="bar"?e/10:t==="kPa"?e/1e3:e}function C2(e,t){return t==="C"?e+273.15:e}function q(e,t=6){if(e==null||!Number.isFinite(e))return"\u4E0D\u9002\u7528";let n=Math.abs(e);return n>0&&n<1e-5||n>=1e7?e.toExponential(Math.min(6,t)):new Intl.NumberFormat("zh-CN",{maximumFractionDigits:t,minimumFractionDigits:0,useGrouping:!0}).format(e)}function M2(e,t,n){return e===1?{name:"\u538B\u7F29\u6DB2\u4F53 / \u8FC7\u51B7\u6C34",note:"IF97 Region 1"}:e===2?{name:"\u8FC7\u70ED\u84B8\u6C7D",note:"IF97 Region 2"}:e===3?t>=I0&&n>=_2?{name:"\u8D85\u4E34\u754C\u6D41\u4F53",note:"IF97 Region 3"}:{name:"\u9AD8\u5BC6\u5EA6\u8FD1\u4E34\u754C\u6D41\u4F53",note:"IF97 Region 3"}:e===4?{name:"\u9971\u548C\u4E24\u76F8\u533A",note:"IF97 Region 4"}:e===5?{name:"\u9AD8\u6E29\u84B8\u6C7D",note:"IF97 Region 5"}:{name:"\u672A\u77E5\u72B6\u6001",note:`IF97 Region ${e}`}}function g2(e,t){if(e<m2||e>I0)return e>I0?"\u538B\u529B\u9AD8\u4E8E\u4E34\u754C\u538B\u529B\uFF0C\u65E0\u6DB2-\u6C7D\u9971\u548C\u6E29\u5EA6\u3002":"\u538B\u529B\u4F4E\u4E8E\u4E09\u76F8\u70B9\u538B\u529B\uFF0C\u4E0D\u8BA1\u7B97\u5E38\u89C4\u6DB2-\u6C7D\u9971\u548C\u6E29\u5EA6\u3002";let n=O(e),r=t-n,o=n-273.15,i=r;if(Math.abs(i)<.02)return`\u63A5\u8FD1\u9971\u548C\u7EBF\uFF1AT\u209B = ${q(o,5)} \xB0C\uFF0C\u6E29\u5DEE\u7EA6 ${q(i,5)} K\u3002PT \u6C42\u89E3\u5668\u5728\u9971\u548C\u8FB9\u754C\u6309\u6DB2\u76F8\u4FA7\u5904\u7406\u3002`;let a=i>0?"\u9AD8\u4E8E":"\u4F4E\u4E8E";return`\u8BE5\u538B\u529B\u4E0B\u9971\u548C\u6E29\u5EA6 T\u209B = ${q(o,5)} \xB0C\uFF1B\u5F53\u524D\u6E29\u5EA6${a}\u9971\u548C\u6E29\u5EA6 ${q(Math.abs(i),5)} K\u3002`}function S2(e){return R2.map(t=>({...t,value:e[t.key],formatted:q(e[t.key],t.digits)}))}function d2(e,t,n){let r=M2(e.region,t,n);a2.textContent=r.name,c2.textContent=r.note,u2.textContent=`${q(t,8)} MPa \xB7 ${q(n-273.15,6)} \xB0C \xB7 ${q(n,6)} K`,f2.textContent=g2(t,n),Y=S2(e),v={...e,inputPressureMPa:t,inputTemperatureK:n},l2.innerHTML=Y.filter(o=>o.featured).map(o=>`
+      <article class="metric-card">
+        <div class="metric-label"><span>${o.label}</span><span class="metric-symbol">${o.symbol}</span></div>
+        <div class="metric-value">${o.formatted}</div>
+        <div class="metric-unit">${o.unit}</div>
+      </article>
+    `).join(""),p2.innerHTML=Y.map(o=>`
+    <tr>
+      <td><span class="property-name">${o.label}</span><span class="property-symbol">${o.symbol}</span></td>
+      <td class="numeric">${o.formatted}</td>
+      <td>${o.unit}</td>
+    </tr>
+  `).join(""),i1.hidden=!0,o1.hidden=!1,W.disabled=!1,E0.disabled=!1,R0.textContent="\u8BA1\u7B97\u5B8C\u6210"}function r1(e){m0.textContent=e,m0.hidden=!1,R0.textContent="\u8F93\u5165\u65E0\u6548"}function s1(){m0.hidden=!0,m0.textContent=""}function x2(e,t,n,r){return!Number.isFinite(e)||!Number.isFinite(t)?"\u8BF7\u8F93\u5165\u6709\u6548\u7684\u538B\u529B\u548C\u6E29\u5EA6\u6570\u503C\u3002":e<=0?"\u538B\u529B\u5FC5\u987B\u5927\u4E8E 0\u3002":r<273.15?"IF97 \u7684\u5E38\u89C4\u6700\u4F4E\u6E29\u5EA6\u4E3A 273.15 K\uFF080 \xB0C\uFF09\u3002":r<=1073.15&&n>100?"0\u2013800 \xB0C \u8303\u56F4\u5185\uFF0CIF97 \u538B\u529B\u4E0A\u9650\u4E3A 100 MPa\u3002":r>1073.15&&r<=2273.15&&n>50?"800\u20132000 \xB0C \u8303\u56F4\u5185\uFF0CIF97 \u538B\u529B\u4E0A\u9650\u4E3A 50 MPa\u3002":r>2273.15?"IF97 \u6E29\u5EA6\u4E0A\u9650\u4E3A 2273.15 K\uFF082000 \xB0C\uFF09\u3002":null}function h0(){s1();let e=Number.parseFloat(e0.value),t=Number.parseFloat(_0.value),n=h2(e,y0.value),r=C2(t,N0.value),o=x2(e,t,n,r);if(o){r1(o);return}Q.classList.add("is-loading"),Q.disabled=!0,R0.textContent="\u8BA1\u7B97\u4E2D";try{let i=n1(n,r);d2(i,n,r)}catch(i){let a=i?.message||"IF97 \u6C42\u89E3\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5\u8F93\u5165\u662F\u5426\u4F4D\u4E8E\u6709\u6548\u8303\u56F4\u5185\u3002";r1(`\u8BA1\u7B97\u5931\u8D25\uFF1A${a}`)}finally{Q.classList.remove("is-loading"),Q.disabled=!1}}function P2(){e0.value="1",y0.value="MPa",_0.value="200",N0.value="C",s1(),o1.hidden=!0,i1.hidden=!1,W.disabled=!0,E0.disabled=!0,R0.textContent="\u7B49\u5F85\u8BA1\u7B97",Y=[],v=null,e0.focus()}function I2(){if(!v)return"";let e=["IF97 \u6C34\u548C\u84B8\u6C7D\u7269\u6027\u8BA1\u7B97\u7ED3\u679C",`\u538B\u529B: ${v.inputPressureMPa} MPa`,`\u6E29\u5EA6: ${v.inputTemperatureK} K (${v.inputTemperatureK-273.15} \xB0C)`,`\u533A\u57DF: Region ${v.region}`,""],t=Y.map(n=>`${n.label} (${n.symbol}): ${n.formatted} ${n.unit}`);return[...e,...t].join(`
+`)}async function y2(){let e=I2();if(e){try{await navigator.clipboard.writeText(e),W.textContent="\u5DF2\u590D\u5236"}catch{let t=document.createElement("textarea");t.value=e,t.style.position="fixed",t.style.opacity="0",document.body.appendChild(t),t.select(),document.execCommand("copy"),t.remove(),W.textContent="\u5DF2\u590D\u5236"}window.setTimeout(()=>{W.textContent="\u590D\u5236\u7ED3\u679C"},1200)}}function N2(e){let t=String(e??"");return/[",\n]/.test(t)?`"${t.replaceAll('"','""')}"`:t}function E2(){if(!v)return;let t="\uFEFF"+[["\u9879\u76EE","\u7B26\u53F7","\u6570\u503C","\u5355\u4F4D"],["\u538B\u529B","p",v.inputPressureMPa,"MPa"],["\u6E29\u5EA6","T",v.inputTemperatureK,"K"],["IF97 \u533A\u57DF","Region",v.region,"\u2014"],...Y.map(i=>[i.label,i.symbol,i.value??"",i.unit])].map(i=>i.map(N2).join(",")).join(`\r
+`),n=new Blob([t],{type:"text/csv;charset=utf-8"}),r=URL.createObjectURL(n),o=document.createElement("a");o.href=r,o.download=`IF97_${v.inputPressureMPa}MPa_${(v.inputTemperatureK-273.15).toFixed(2)}C.csv`,document.body.appendChild(o),o.click(),o.remove(),URL.revokeObjectURL(r)}function w2(e){e0.value=e.dataset.p,y0.value="MPa",_0.value=e.dataset.t,N0.value="C",h0()}Q.addEventListener("click",h0);s2.addEventListener("click",P2);W.addEventListener("click",y2);E0.addEventListener("click",E2);document.querySelectorAll("[data-preset]").forEach(e=>{e.addEventListener("click",()=>w2(e))});[e0,_0].forEach(e=>{e.addEventListener("keydown",t=>{t.key==="Enter"&&h0()})});h0();})();
+</script>
+</body>
+</html>

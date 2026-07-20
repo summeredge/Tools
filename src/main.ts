@@ -12,7 +12,7 @@ import {
 import { fetchSafety, SafetyError, type SafetyResult } from "./safety";
 import { fetchWeather, weatherCodeText, weatherIcon, WeatherError, type WeatherResult } from "./weather";
 
-type ToolId = "weather" | "safety" | "markdown" | "text" | "diff";
+type ToolId = "weather" | "safety" | "if97" | "markdown" | "text" | "diff";
 type HomeMode = "all" | "favorites" | "recent";
 type Theme = "system" | "light" | "dark";
 
@@ -21,6 +21,7 @@ type Tool = { id: ToolId; name: string; description: string; category: string; m
 const tools: Tool[] = [
   { id: "weather", name: "天气查询", description: "查询城市当前天气与未来 5 日预报", category: "外部数据", mark: "☁", keywords: ["天气", "温度", "预报", "城市"] },
   { id: "safety", name: "化学品安全信息", description: "查询 PubChem 安全摘要与官方数据库链接", category: "外部数据", mark: "SDS", keywords: ["化学品", "SDS", "MSDS", "CAS", "安全", "GHS"] },
+  { id: "if97", name: "IF97 水和蒸汽物性", description: "按压力和温度计算水与蒸汽的热力学物性", category: "过程工程", mark: "IF97", keywords: ["水", "蒸汽", "物性", "压力", "温度", "IAPWS"] },
   { id: "markdown", name: "Markdown", description: "边写边预览，安全净化并下载草稿", category: "文档", mark: "MD", keywords: ["文档", "预览", "表格", "代码"] },
   { id: "text", name: "文本处理", description: "统计、清理、排序、去重与大小写转换", category: "文本", mark: "Aa", keywords: ["字符", "行", "空白", "排序"] },
   { id: "diff", name: "文本对比", description: "逐行查看新增、删除与未变化内容", category: "文本", mark: "Δ", keywords: ["差异", "比较", "新增", "删除"] },
@@ -107,7 +108,7 @@ function renderSidebar(active: ToolId | "home"): string {
     <button class="side-link ${isHome && state.homeMode === "recent" ? "active" : ""}" data-nav="recent"><span>◷</span>最近使用 <em>${recentIds.length}</em></button>
     <div class="sidebar-label">工具分类</div>
     <div class="side-categories">${categories.filter((category) => category !== "全部").map((category) => `<button class="side-link compact ${isHome && state.category === category ? "active" : ""}" data-category="${escapeHtml(category)}"><span>·</span>${escapeHtml(category)}</button>`).join("")}</div>
-    <div class="sidebar-note"><span class="note-dot"></span><div><strong>专业工具即将加入</strong><p>后续会以独立迭代增加经过验证的过程工程工具，本版不包含专业计算。</p></div></div>
+    <div class="sidebar-note"><span class="note-dot"></span><div><strong>过程工程工具已加入</strong><p>IF97 水和蒸汽物性计算器在浏览器本地运行，关键设计点请按适用标准复核。</p></div></div>
   </aside>`;
 }
 
@@ -149,6 +150,7 @@ function renderToolContent(id: ToolId): string {
   switch (id) {
     case "weather": return `<div class="weather-tool"><div class="weather-search"><label for="weather-city">城市</label><div class="calc-input-row"><input id="weather-city" type="search" value="${escapeHtml(storage.read<string>("workbench:weather-city", ""))}" placeholder="例如：上海、北京" autocomplete="off"><button class="button primary" id="weather-search-button">查询天气</button></div><p class="hint">默认摄氏度，不强制获取浏览器定位。数据来自 <a href="https://www.nmc.cn/publish/forecast.html" target="_blank" rel="noreferrer">中央气象台（中国气象局）↗</a>。</p></div><div id="weather-status" class="feedback" aria-live="polite">请输入城市开始查询。</div><div id="weather-result"></div></div>`;
     case "safety": return `<div class="safety-tool"><div class="safety-search"><label for="safety-query">化学品名称或 CAS 号</label><div class="calc-input-row"><input id="safety-query" type="search" value="${escapeHtml(storage.read<string>("workbench:safety-query", ""))}" placeholder="例如：甲醇、ethanol、64-17-5" autocomplete="off"><button class="button primary" id="safety-search-button">查询安全信息</button></div><p class="hint">支持中文名称、英文名称和 CAS 号。中文名称会先通过 <a href="https://www.wikidata.org/" target="_blank" rel="noreferrer">Wikidata</a> 做名称映射，再从 <a href="https://pubchem.ncbi.nlm.nih.gov/" target="_blank" rel="noreferrer">PubChem</a> 获取安全摘要；结果不替代具体产品的最新版供应商 SDS。</p></div><div id="safety-status" class="feedback" aria-live="polite">请输入化学品名称或 CAS 号。</div><div id="safety-result"></div></div>`;
+    case "if97": return `<div class="if97-tool"><div class="if97-toolbar"><p class="hint">本工具使用 IAPWS-IF97 模型在浏览器本地计算，不发送压力、温度或计算结果。页面内嵌 <code>iapws-if97 v2.1.5</code>（MIT）实现。</p><a class="button secondary" href="./tools/if97.html" target="_blank" rel="noreferrer">在新页面打开 ↗</a></div><iframe class="if97-frame" src="./tools/if97.html" title="IF97 水和蒸汽物性计算器"></iframe></div>`;
     case "markdown": return `<div class="markdown-tool"><div class="markdown-actions"><span class="hint">草稿仅自动保存到当前浏览器。</span><div><button class="button secondary" id="markdown-copy">复制 Markdown</button><button class="button secondary" id="markdown-copy-html">复制渲染结果</button><button class="button primary" id="markdown-download">下载 .md</button></div></div><div class="markdown-tabs"><button class="active" data-md-tab="edit">编辑</button><button data-md-tab="preview">预览</button></div><div class="markdown-grid"><label class="markdown-editor" data-md-pane="edit"><span class="sr-only">Markdown 编辑器</span><textarea id="markdown-input" spellcheck="false" placeholder="# 今日记录\n\n- 一个清单\n- \`Ctrl + Enter\` 之外也可以直接预览"></textarea></label><article class="markdown-preview" data-md-pane="preview" id="markdown-preview" aria-label="Markdown 预览"></article></div><div class="feedback" id="markdown-feedback" aria-live="polite"></div></div>`;
     case "text": return `<div class="text-tool"><div class="text-actions"><div class="stats" id="text-stats">字符 0 · 字数 0 · 行数 0</div><div class="button-group"><button class="button secondary" data-text-action="upper">大写</button><button class="button secondary" data-text-action="lower">小写</button><button class="button secondary" data-text-action="trim">去首尾空白</button><button class="button secondary" data-text-action="collapse">去多余空白</button><button class="button secondary" data-text-action="sort">行排序</button><button class="button secondary" data-text-action="unique">行去重</button><button class="button primary" data-text-copy>复制</button><button class="button danger" data-text-clear>清空</button></div></div><textarea id="text-input" class="large-textarea" placeholder="在这里输入或粘贴文本…"></textarea><div class="feedback" id="text-feedback" aria-live="polite"></div></div>`;
     case "diff": return `<div class="diff-tool"><div class="split-actions"><span class="hint">长文本会先显示处理状态，比较全程在浏览器内完成。</span><div><button class="button primary" id="diff-run">开始比较</button><button class="button secondary" id="diff-clear">清空</button></div></div><div class="diff-input-grid"><label><span>原文本</span><textarea id="diff-left" spellcheck="false" placeholder="原始内容…"></textarea></label><label><span>新文本</span><textarea id="diff-right" spellcheck="false" placeholder="修改后的内容…"></textarea></label></div><div id="diff-status" class="feedback" aria-live="polite"></div><div id="diff-output" class="diff-output"></div></div>`;
