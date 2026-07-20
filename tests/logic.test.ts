@@ -3,34 +3,14 @@ import { afterEach, describe, expect, it } from "vitest";
 import createDOMPurify from "dompurify";
 import {
   UNIT_CATEGORIES,
-  convertInteger,
   convertUnit,
   createStorageAdapter,
-  dateDifference,
-  dateToTimestamp,
-  decodeBase64,
-  decodeUrl,
-  encodeBase64,
-  encodeUrl,
-  evaluateExpression,
   jsonTransform,
-  parseColor,
-  rgbToHex,
-  timestampToDate,
 } from "../src/logic";
 import { renderMarkdown as renderSafeMarkdown } from "../src/markdown";
 import { fetchWeather, WeatherError } from "../src/weather";
 
-describe("科学计算与单位换算", () => {
-  it("安全解析优先级、括号、百分比和函数", () => {
-    expect(evaluateExpression("2 + 3 * 4")).toBe(14);
-    expect(evaluateExpression("(2 + 3) ^ 2")).toBe(25);
-    expect(evaluateExpression("12.5% * 80")).toBe(10);
-    expect(evaluateExpression("sqrt(81) + sin(pi / 2)")).toBeCloseTo(10);
-    expect(() => evaluateExpression("1 / 0")).toThrow("不能除以 0");
-    expect(() => evaluateExpression("globalThis.alert(1)")).toThrow();
-  });
-
+describe("单位换算", () => {
   it("覆盖温度、压力和全部单位类别", () => {
     expect(convertUnit(32, "temperature", "f", "c")).toBeCloseTo(0);
     expect(convertUnit(100, "temperature", "c", "f")).toBeCloseTo(212);
@@ -42,23 +22,7 @@ describe("科学计算与单位换算", () => {
   });
 });
 
-describe("日期、编码和 JSON", () => {
-  it("区分 Unix 秒和毫秒并计算日期差值", () => {
-    expect(timestampToDate(0, "seconds").toISOString()).toBe("1970-01-01T00:00:00.000Z");
-    expect(timestampToDate(0, "milliseconds").toISOString()).toBe("1970-01-01T00:00:00.000Z");
-    expect(dateToTimestamp("1970-01-01T00:00:01.000Z", "seconds")).toBe(1);
-    expect(dateToTimestamp("1970-01-01T00:00:01.000Z", "milliseconds")).toBe(1000);
-    expect(dateDifference("2025-01-01T00:00:00Z", "2025-01-02T02:03:04Z")).toMatchObject({ days: 1, hours: 2, minutes: 3, seconds: 4 });
-  });
-
-  it("支持 UTF-8 Base64、URL 和整数进制", () => {
-    expect(decodeBase64(encodeBase64("中文 workbench"))).toBe("中文 workbench");
-    expect(decodeUrl(encodeUrl("a b/中文"))).toBe("a b/中文");
-    expect(convertInteger("255", 10, 16)).toBe("FF");
-    expect(convertInteger("11111111", 2, 10)).toBe("255");
-    expect(() => convertInteger("102", 2, 10)).toThrow();
-  });
-
+describe("JSON", () => {
   it("格式化和压缩 JSON，并保留可理解的错误", () => {
     expect(jsonTransform('{"a":1,"b":[true]}', false)).toEqual({ ok: true, value: '{\n  "a": 1,\n  "b": [\n    true\n  ]\n}' });
     expect(jsonTransform('{"a":1}', true)).toEqual({ ok: true, value: '{"a":1}' });
@@ -68,7 +32,7 @@ describe("日期、编码和 JSON", () => {
   });
 });
 
-describe("Markdown 安全净化、颜色和存储降级", () => {
+describe("Markdown 安全净化和存储降级", () => {
   it("移除脚本和危险链接，同时保留常见 Markdown", () => {
     const dom = new JSDOM("<!doctype html>");
     const purifier = createDOMPurify(dom.window);
@@ -76,12 +40,6 @@ describe("Markdown 安全净化、颜色和存储降级", () => {
     expect(html).toContain("<h1");
     expect(html).not.toContain("<script");
     expect(html).not.toContain("javascript:");
-  });
-
-  it("转换颜色并能识别非法颜色", () => {
-    expect(rgbToHex(parseColor("rgb(47, 111, 237)"))).toBe("#2F6FED");
-    expect(rgbToHex(parseColor("hsl(220, 84%, 56%)"))).toBe("#316FED");
-    expect(() => parseColor("not-a-color")).toThrow();
   });
 
   it("浏览器存储不可用时工具仍可读写失败而不抛错", () => {

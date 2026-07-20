@@ -12,13 +12,11 @@
   "dependencies": {
     "diff": "8.0.2",
     "dompurify": "3.2.6",
-    "marked": "15.0.12",
-    "qrcode": "1.5.4"
+    "marked": "15.0.12"
   },
   "devDependencies": {
     "@types/jsdom": "21.1.7",
     "@types/node": "22.15.21",
-    "@types/qrcode": "1.5.5",
     "jsdom": "26.1.0",
     "typescript": "5.9.3",
     "vite": "7.0.6",
