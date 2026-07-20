@@ -58,17 +58,30 @@ describe("天气服务响应边界", () => {
     let call = 0;
     globalThis.fetch = (async () => {
       call += 1;
-      if (call === 1) return new Response(JSON.stringify({ results: [{ name: "上海", country: "中国", latitude: 31.2, longitude: 121.5 }] }));
-      return new Response(JSON.stringify({ timezone: "Asia/Shanghai", current: { temperature_2m: 25, apparent_temperature: 26, relative_humidity_2m: 60, wind_speed_10m: 12, weather_code: 1 }, daily: { time: ["2025-01-01"], weather_code: [0], temperature_2m_max: [28], temperature_2m_min: [18] } }));
+      if (call === 1) return new Response(JSON.stringify({ msg: "success", code: 0, data: ["54511|北京|Beijing|中国"] }));
+      return new Response(JSON.stringify({ msg: "success", code: 0, data: { location: { id: "54511", name: "北京", path: "中国, 北京, 北京", timezone: "Asia/Shanghai" }, now: { temperature: 25, feelst: 26, humidity: 60, windSpeed: 12 }, daily: [{ date: "2025-01-01", dayText: "晴", dayCode: 1, high: 28, low: 18 }], lastUpdate: "2025/01/01 12:00" } }));
     }) as typeof fetch;
-    const result = await fetchWeather("上海");
-    expect(result.city).toBe("上海");
+    const result = await fetchWeather("北京");
+    expect(result.city).toBe("北京");
     expect(result.days).toHaveLength(1);
     expect(call).toBe(2);
   });
 
+  it("为上海使用中国气象局对应站点", async () => {
+    let requestedUrl = "";
+    globalThis.fetch = (async (input) => {
+      requestedUrl = String(input);
+      return new Response(JSON.stringify({ msg: "success", code: 0, data: { location: { name: "徐家汇", timezone: "Asia/Shanghai" }, now: { temperature: 25, feelst: 26, humidity: 60, windSpeed: 12 }, daily: [{ date: "2025-01-01", dayText: "晴", dayCode: 1, high: 28, low: 18 }] } }));
+    }) as typeof fetch;
+
+    const result = await fetchWeather("上海");
+
+    expect(requestedUrl).toContain("stationid=58367");
+    expect(result.city).toBe("上海");
+  });
+
   it("区分空结果、网络错误和限流", async () => {
-    globalThis.fetch = (async () => new Response(JSON.stringify({ results: [] }))) as typeof fetch;
+    globalThis.fetch = (async () => new Response(JSON.stringify({ msg: "success", code: 0, data: [] }))) as typeof fetch;
     await expect(fetchWeather("不存在的城市")).rejects.toMatchObject({ kind: "empty" });
     globalThis.fetch = (async () => { throw new Error("offline"); }) as typeof fetch;
     await expect(fetchWeather("上海")).rejects.toMatchObject({ kind: "network" });

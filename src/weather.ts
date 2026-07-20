@@ -1,22 +1,18 @@
-export type WeatherDay = { date: string; code: number; high: number; low: number };
-export type WeatherResult = { city: string; country: string; timezone: string; fetchedAt: string; temperature: number; apparent: number; humidity: number; wind: number; code: number; days: WeatherDay[] };
+export type WeatherDay = { date: string; code: number; condition: string; high: number; low: number };
+export type WeatherResult = { city: string; country: string; timezone: string; fetchedAt: string; temperature: number; apparent: number; humidity: number; wind: number; code: number; condition: string; days: WeatherDay[] };
 
 export class WeatherError extends Error {
   readonly kind: "empty" | "rate" | "network" | "service";
   constructor(kind: WeatherError["kind"], message: string) { super(message); this.kind = kind; }
 }
 
-export function weatherCodeText(code: number): string {
-  if (code === 0) return "晴朗";
-  if ([1, 2, 3].includes(code)) return code === 1 ? "大致晴朗" : code === 2 ? "局部多云" : "阴天";
-  if ([45, 48].includes(code)) return "雾";
-  if ([51, 53, 55, 56, 57].includes(code)) return "毛毛雨";
-  if ([61, 63, 65, 66, 67].includes(code)) return "降雨";
-  if ([71, 73, 75, 77].includes(code)) return "降雪";
-  if ([80, 81, 82].includes(code)) return "阵雨";
-  if ([85, 86].includes(code)) return "阵雪";
-  if ([95, 96, 99].includes(code)) return "雷雨";
-  return "天气变化";
+export function weatherCodeText(condition: string): string { return condition || "天气变化"; }
+
+export function weatherIcon(condition: string): string {
+  if (/晴/u.test(condition)) return "☀";
+  if (/雨|雷/u.test(condition)) return "☂";
+  if (/雪/u.test(condition)) return "❄";
+  return "☁";
 }
 
 async function fetchJson(url: string): Promise<Record<string, unknown>> {
@@ -24,33 +20,71 @@ async function fetchJson(url: string): Promise<Record<string, unknown>> {
     const response = await fetch(url);
     if (response.status === 429) throw new WeatherError("rate", "天气服务暂时限流，请稍后重试。");
     if (!response.ok) throw new WeatherError("service", `天气服务返回 HTTP ${response.status}。`);
-    return await response.json() as Record<string, unknown>;
+    const payload = await response.json() as Record<string, unknown>;
+    if (payload.code !== undefined && payload.code !== 0 && payload.code !== "0") throw new WeatherError("service", "天气服务返回的数据无效，请稍后重试。");
+    return payload;
   } catch (error) {
     if (error instanceof WeatherError) throw error;
     throw new WeatherError("network", "无法连接天气服务，请检查网络后重试。");
   }
 }
 
+function toNumber(value: unknown, fallback: number): number {
+  const result = Number(value);
+  return Number.isFinite(result) ? result : fallback;
+}
+
+type CmaStation = { id: string; city: string; country: string };
+
+const cityStationAliases: Record<string, CmaStation> = {
+  上海: { id: "58367", city: "上海", country: "中国" },
+  上海市: { id: "58367", city: "上海", country: "中国" },
+};
+
+function stationFromValue(value: unknown): CmaStation | null {
+  if (typeof value !== "string") return null;
+  const [id, city, , country] = value.split("|");
+  if (!id || !city) return null;
+  return { id, city, country: country || "中国" };
+}
+
+function conditionFromDay(day: Record<string, unknown>): string {
+  const dayText = String(day.dayText ?? "").trim();
+  const nightText = String(day.nightText ?? "").trim();
+  if (dayText && nightText && dayText !== nightText) return `${dayText}转${nightText}`;
+  return dayText || nightText || "天气变化";
+}
+
 export async function fetchWeather(city: string): Promise<WeatherResult> {
   const query = city.trim();
   if (!query) throw new WeatherError("empty", "请输入城市名称。");
-  const geocodeUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=zh&format=json`;
-  const geocode = await fetchJson(geocodeUrl);
-  const results = Array.isArray(geocode.results) ? geocode.results as Array<Record<string, unknown>> : [];
-  const place = results[0];
-  if (!place || typeof place.latitude !== "number" || typeof place.longitude !== "number") throw new WeatherError("empty", "没有找到这个城市，请尝试更完整的城市名称。");
-  const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${place.latitude}&longitude=${place.longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=5`;
+
+  const directStation = cityStationAliases[query];
+  let station: CmaStation | undefined = directStation;
+  if (!station) {
+    const autocompleteUrl = `https://weather.cma.cn/api/autocomplete?q=${encodeURIComponent(query)}&limit=10&timestamp=${Date.now()}`;
+    const autocomplete = await fetchJson(autocompleteUrl);
+    const stations = Array.isArray(autocomplete.data) ? autocomplete.data.map(stationFromValue).filter((item): item is CmaStation => item !== null) : [];
+    station = stations.find((item) => item.city === query)
+      ?? stations.find((item) => item.city.includes(query) || query.includes(item.city))
+      ?? (stations.length === 1 ? stations[0] : undefined);
+  }
+  if (!station) throw new WeatherError("empty", "没有找到这个城市，请尝试更完整的城市名称。");
+
+  const forecastUrl = `https://weather.cma.cn/api/weather/view?stationid=${encodeURIComponent(station.id)}`;
   const forecast = await fetchJson(forecastUrl);
-  const current = forecast.current as Record<string, unknown> | undefined;
-  const daily = forecast.daily as Record<string, unknown> | undefined;
-  const dates = Array.isArray(daily?.time) ? daily.time as string[] : [];
-  const codes = Array.isArray(daily?.weather_code) ? daily.weather_code as number[] : [];
-  const highs = Array.isArray(daily?.temperature_2m_max) ? daily.temperature_2m_max as number[] : [];
-  const lows = Array.isArray(daily?.temperature_2m_min) ? daily.temperature_2m_min as number[] : [];
-  if (!current || typeof current.temperature_2m !== "number" || dates.length === 0) throw new WeatherError("service", "天气服务返回的数据不完整，请稍后重试。");
+  const data = forecast.data as Record<string, unknown> | undefined;
+  const location = data?.location as Record<string, unknown> | undefined;
+  const current = data?.now as Record<string, unknown> | undefined;
+  const daily = Array.isArray(data?.daily) ? data.daily as Array<Record<string, unknown>> : [];
+  const firstDay = daily[0];
+  const temperature = Number(current?.temperature);
+  if (!location || !current || !Number.isFinite(temperature) || !firstDay) throw new WeatherError("service", "天气服务返回的数据不完整，请稍后重试。");
+
+  const condition = String(current.weather ?? current.weatherText ?? conditionFromDay(firstDay));
   return {
-    city: String(place.name ?? query), country: String(place.country ?? ""), timezone: String(forecast.timezone ?? "当地时区"), fetchedAt: new Date().toISOString(),
-    temperature: current.temperature_2m, apparent: Number(current.apparent_temperature ?? current.temperature_2m), humidity: Number(current.relative_humidity_2m ?? 0), wind: Number(current.wind_speed_10m ?? 0), code: Number(current.weather_code ?? -1),
-    days: dates.map((date, index) => ({ date, code: Number(codes[index] ?? -1), high: Number(highs[index] ?? 0), low: Number(lows[index] ?? 0) })),
+    city: directStation?.city ?? String(location.name ?? station.city), country: station.country, timezone: String(location.timezone ?? "Asia/Shanghai"), fetchedAt: String(data?.lastUpdate ?? new Date().toISOString()),
+    temperature, apparent: toNumber(current.feelst ?? current.apparentTemperature, temperature), humidity: toNumber(current.humidity, 0), wind: toNumber(current.windSpeed, 0), code: toNumber(current.weatherCode ?? firstDay.dayCode, -1), condition,
+    days: daily.slice(0, 5).map((day) => ({ date: String(day.date ?? ""), code: toNumber(day.dayCode, -1), condition: conditionFromDay(day), high: toNumber(day.high, 0), low: toNumber(day.low, 0) })).filter((day) => day.date),
   };
 }
