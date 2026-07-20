@@ -33,6 +33,8 @@ describe("化学品安全信息服务", () => {
     globalThis.fetch = (async (input) => {
       const url = String(input);
       requestedUrls.push(url);
+      if (url.includes("wbsearchentities")) return new Response(JSON.stringify({ search: [{ id: "Q14982", label: "甲醇" }] }));
+      if (url.includes("wbgetentities")) return new Response(JSON.stringify({ entities: { Q14982: { claims: { P662: [{ mainsnak: { datavalue: { value: "887" } } }] } } } }));
       if (url.includes("/cids/")) return new Response(JSON.stringify({ IdentifierList: { CID: [702] } }));
       if (url.includes("/property/")) return new Response(JSON.stringify({ PropertyTable: { Properties: [{ IUPACName: "ethanol", MolecularFormula: "C2H6O", MolecularWeight: "46.07" }] } }));
       return new Response(JSON.stringify({ Record: { RecordTitle: "Ethanol", Section: [{ TOCHeading: "Safety and Hazards", Section: [{ TOCHeading: "Hazards Identification", Section: [{ TOCHeading: "GHS Classification", Information: [{ Name: "Pictogram(s)", Value: { StringWithMarkup: [{ String: " ", Markup: [{ Extra: "Flammable" }] }] } }, { Name: "Signal", Value: { StringWithMarkup: [{ String: "Danger" }] } }, { Name: "GHS Hazard Statements", Value: { StringWithMarkup: [{ String: "H225: Highly Flammable liquid and vapor" }] } }, { Name: "Precautionary Statement Codes", Value: { StringWithMarkup: [{ String: "P210, P233" }] } }] }] }] }] } }));
@@ -51,6 +53,12 @@ describe("化学品安全信息服务", () => {
     requestedUrls.length = 0;
     await fetchSafety("64-17-5");
     expect(requestedUrls[0]).toContain("/compound/identifier/64-17-5/cids/JSON?identifier_type=CAS");
+
+    requestedUrls.length = 0;
+    const chineseResult = await fetchSafety("甲醇");
+    expect(requestedUrls[0]).toContain("wikidata.org/w/api.php?action=wbsearchentities");
+    expect(chineseResult.cid).toBe(887);
+    expect(chineseResult.nameSource).toBe("Wikidata");
   });
 
   it("没有 CID 时返回可理解的空结果错误", async () => {

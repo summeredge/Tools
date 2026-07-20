@@ -10,6 +10,7 @@ export type SafetyResult = {
   hazards: string;
   precautions: string;
   fetchedAt: string;
+  nameSource: "PubChem" | "Wikidata";
 };
 
 export class SafetyError extends Error {
@@ -71,17 +72,49 @@ function informationExtras(section: JsonRecord, name: string): string[] {
   return extrasFromValue(asRecord(entry)?.Value);
 }
 
-async function fetchJson(url: string): Promise<unknown> {
+async function fetchJson(url: string, service = "PubChem"): Promise<unknown> {
   try {
     const response = await fetch(url);
-    if (response.status === 404) throw new SafetyError("empty", "没有找到对应化学品，请尝试 CAS 号或英文名称。");
-    if (response.status === 429) throw new SafetyError("rate", "PubChem 查询较频繁，请稍后重试。");
-    if (!response.ok) throw new SafetyError("service", `PubChem 服务返回 HTTP ${response.status}。`);
+    if (response.status === 404) throw new SafetyError("empty", "没有找到对应化学品，请尝试 CAS 号、中文名称或英文名称。");
+    if (response.status === 429) throw new SafetyError("rate", `${service} 查询较频繁，请稍后重试。`);
+    if (!response.ok) throw new SafetyError("service", `${service} 服务返回 HTTP ${response.status}。`);
     return await response.json();
   } catch (error) {
     if (error instanceof SafetyError) throw error;
-    throw new SafetyError("network", "无法连接 PubChem，请检查网络后重试。");
+    throw new SafetyError("network", `无法连接 ${service}，请检查网络后重试。`);
   }
+}
+
+function claimValue(claims: JsonRecord | null, property: string): string {
+  for (const claim of asArray(claims?.[property])) {
+    const value = asRecord(asRecord(claim)?.mainsnak)?.datavalue;
+    const dataValue = asRecord(value)?.value;
+    if (typeof dataValue === "string" || typeof dataValue === "number") return String(dataValue);
+  }
+  return "";
+}
+
+async function resolveChineseName(query: string): Promise<{ cid: number; source: "Wikidata" } | null> {
+  const searchUrl = `https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(query)}&language=zh&uselang=zh&type=item&limit=5&format=json&formatversion=2&origin=*`;
+  const searchPayload = asRecord(await fetchJson(searchUrl, "Wikidata"));
+  const exact = asArray(searchPayload?.search).map(asRecord).find((item) => item?.label === query);
+  const entityId = typeof exact?.id === "string" ? exact.id : "";
+  if (!entityId) return null;
+
+  const entityUrl = `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${encodeURIComponent(entityId)}&props=claims&format=json&formatversion=2&origin=*`;
+  const entityPayload = asRecord(await fetchJson(entityUrl, "Wikidata"));
+  const entities = asRecord(entityPayload?.entities);
+  const entity = asRecord(entities?.[entityId]);
+  const claims = asRecord(entity?.claims);
+  const cid = Number(claimValue(claims, "P662"));
+  if (Number.isInteger(cid) && cid > 0) return { cid, source: "Wikidata" };
+
+  const cas = claimValue(claims, "P231");
+  if (!/^\d{2,7}-\d{2}-\d$/.test(cas)) return null;
+  const casPayload = asRecord(await fetchJson(`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/identifier/${encodeURIComponent(cas)}/cids/JSON?identifier_type=CAS`));
+  const identifierList = asRecord(casPayload?.IdentifierList);
+  const casCid = Number(asArray(identifierList?.CID)[0]);
+  return Number.isInteger(casCid) && casCid > 0 ? { cid: casCid, source: "Wikidata" } : null;
 }
 
 export async function fetchSafety(query: string): Promise<SafetyResult> {
@@ -89,13 +122,18 @@ export async function fetchSafety(query: string): Promise<SafetyResult> {
   if (!normalized) throw new SafetyError("empty", "请输入化学品名称或 CAS 号。");
 
   const isCas = /^\d{2,7}-\d{2}-\d$/.test(normalized);
-  const cidUrl = isCas
-    ? `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/identifier/${encodeURIComponent(normalized)}/cids/JSON?identifier_type=CAS`
-    : `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encodeURIComponent(normalized)}/cids/JSON`;
-  const cidPayload = asRecord(await fetchJson(cidUrl));
-  const identifierList = asRecord(cidPayload?.IdentifierList);
-  const cid = Number(asArray(identifierList?.CID)[0]);
-  if (!Number.isInteger(cid) || cid <= 0) throw new SafetyError("empty", "没有找到对应化学品，请尝试 CAS 号或英文名称。");
+  let resolved: { cid: number; source: "PubChem" | "Wikidata" } | null = /[^\x00-\x7F]/u.test(normalized) ? await resolveChineseName(normalized) : null;
+  if (!resolved) {
+    const cidUrl = isCas
+      ? `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/identifier/${encodeURIComponent(normalized)}/cids/JSON?identifier_type=CAS`
+      : `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encodeURIComponent(normalized)}/cids/JSON`;
+    const cidPayload = asRecord(await fetchJson(cidUrl));
+    const identifierList = asRecord(cidPayload?.IdentifierList);
+    const cid = Number(asArray(identifierList?.CID)[0]);
+    if (!Number.isInteger(cid) || cid <= 0) throw new SafetyError("empty", "没有找到对应化学品，请尝试 CAS 号、中文名称或英文名称。");
+    resolved = { cid, source: "PubChem" };
+  }
+  const { cid } = resolved;
 
   const [propertyPayload, safetyPayload] = await Promise.all([
     fetchJson(`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${cid}/property/IUPACName,MolecularFormula,MolecularWeight/JSON`),
@@ -118,5 +156,6 @@ export async function fetchSafety(query: string): Promise<SafetyResult> {
     hazards: ghs ? informationText(ghs, "GHS Hazard Statements") || "未提供" : "未提供",
     precautions: ghs ? informationText(ghs, "Precautionary Statement Codes") || "未提供" : "未提供",
     fetchedAt: new Date().toISOString(),
+    nameSource: resolved.source,
   };
 }
