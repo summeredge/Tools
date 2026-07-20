@@ -4,11 +4,4 @@
 
 ## 本地运行
 
-```bash
-npm ci
-npm test
-npm run build
-npm run dev
-```
-
-GitHub Pages 使用 `.github/workflows/deploy-pages.yml` 自动构建和部署。项目采用哈希导航和相对资源路径，适合仓库项目子路径。
+https://summeredge.github.io/Tools/
