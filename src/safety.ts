@@ -9,9 +9,12 @@ export type SafetyResult = {
   signal: string;
   hazards: string;
   precautions: string;
+  safetySections: SafetySection[];
   fetchedAt: string;
   nameSource: "PubChem" | "Wikidata";
 };
+
+export type SafetySection = { title: string; content: string };
 
 export class SafetyError extends Error {
   readonly kind: "empty" | "rate" | "network" | "service";
@@ -70,6 +73,26 @@ function informationText(section: JsonRecord, name: string): string {
 function informationExtras(section: JsonRecord, name: string): string[] {
   const entry = asArray(section.Information).find((item) => asRecord(item)?.Name === name);
   return extrasFromValue(asRecord(entry)?.Value);
+}
+
+function sectionSummary(sections: unknown, heading: string): string {
+  const section = findSections(sections, heading)[0];
+  if (!section) return "";
+  const lines: string[] = [];
+  const visit = (current: JsonRecord): void => {
+    for (const entry of asArray(current.Information)) {
+      const record = asRecord(entry);
+      const name = typeof record?.Name === "string" ? record.Name.trim() : "";
+      const text = textFromValue(record?.Value);
+      if (name && text) lines.push(`${name}: ${text}`);
+    }
+    for (const child of asArray(current.Section)) {
+      const childRecord = asRecord(child);
+      if (childRecord) visit(childRecord);
+    }
+  };
+  visit(section);
+  return [...new Set(lines)].join("\n");
 }
 
 async function fetchJson(url: string, service = "PubChem"): Promise<unknown> {
@@ -143,6 +166,17 @@ export async function fetchSafety(query: string): Promise<SafetyResult> {
   const property = asRecord(asArray(propertyTable?.Properties)[0]);
   const record = asRecord(asRecord(safetyPayload)?.Record);
   const ghs = findSections(record?.Section, "GHS Classification")[0];
+  const safetySectionDefinitions: Array<[string, string]> = [
+    ["健康危害", "Health Hazards"],
+    ["火灾危害", "Fire Hazards"],
+    ["急救措施", "First Aid Measures"],
+    ["泄漏处置", "Accidental Release Measures"],
+    ["操作与储存", "Handling and Storage"],
+    ["暴露控制与个人防护", "Exposure Control and Personal Protection"],
+    ["稳定性与反应性", "Stability and Reactivity"],
+    ["运输信息", "Transport Information"],
+  ];
+  const safetySections = safetySectionDefinitions.map(([title, heading]) => ({ title, content: sectionSummary(record?.Section, heading) })).filter((section) => section.content);
 
   return {
     query: normalized,
@@ -155,6 +189,7 @@ export async function fetchSafety(query: string): Promise<SafetyResult> {
     signal: ghs ? informationText(ghs, "Signal") || "未提供" : "未提供",
     hazards: ghs ? informationText(ghs, "GHS Hazard Statements") || "未提供" : "未提供",
     precautions: ghs ? informationText(ghs, "Precautionary Statement Codes") || "未提供" : "未提供",
+    safetySections,
     fetchedAt: new Date().toISOString(),
     nameSource: resolved.source,
   };
