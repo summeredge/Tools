@@ -58,25 +58,29 @@ describe("天气服务响应边界", () => {
     let call = 0;
     globalThis.fetch = (async () => {
       call += 1;
-      if (call === 1) return new Response(JSON.stringify({ msg: "success", code: 0, data: ["54511|北京|Beijing|中国"] }));
-      return new Response(JSON.stringify({ msg: "success", code: 0, data: { location: { id: "54511", name: "北京", path: "中国, 北京, 北京", timezone: "Asia/Shanghai" }, now: { temperature: 25, feelst: 26, humidity: 60, windSpeed: 12 }, daily: [{ date: "2025-01-01", dayText: "晴", dayCode: 1, high: 28, low: 18 }], lastUpdate: "2025/01/01 12:00" } }));
+      if (call === 1) return new Response(JSON.stringify({ msg: "success", code: 0, data: ["Wqsps|北京|北京市|/ABJ/beijing.html|116.46|39.8"] }));
+      return new Response(JSON.stringify({ msg: "success", code: 0, data: { real: { station: { code: "Wqsps", city: "北京" }, publish_time: "2025-01-01 12:00", weather: { temperature: 25, feelst: 26, humidity: 60, img: "0", info: "晴" }, wind: { speed: 12 } }, predict: { detail: [{ date: "2025-01-01", day: { weather: { info: "晴", img: "0", temperature: "28" } }, night: { weather: { info: "晴", img: "0", temperature: "18" } } }] } } }));
     }) as typeof fetch;
     const result = await fetchWeather("北京");
     expect(result.city).toBe("北京");
+    expect(result.wind).toBe(12);
     expect(result.days).toHaveLength(1);
     expect(call).toBe(2);
   });
 
-  it("为上海使用中国气象局对应站点", async () => {
-    let requestedUrl = "";
+  it("使用中央气象台站点编码查询上海", async () => {
+    let call = 0;
+    let requestedForecastUrl = "";
     globalThis.fetch = (async (input) => {
-      requestedUrl = String(input);
-      return new Response(JSON.stringify({ msg: "success", code: 0, data: { location: { name: "徐家汇", timezone: "Asia/Shanghai" }, now: { temperature: 25, feelst: 26, humidity: 60, windSpeed: 12 }, daily: [{ date: "2025-01-01", dayText: "晴", dayCode: 1, high: 28, low: 18 }] } }));
+      call += 1;
+      if (call === 1) return new Response(JSON.stringify({ msg: "success", code: 0, data: ["WwcJd|上海|上海市|/ASH/shanghai.html|121.43|31.19"] }));
+      requestedForecastUrl = String(input);
+      return new Response(JSON.stringify({ msg: "success", code: 0, data: { real: { station: { code: "WwcJd", city: "上海" }, publish_time: "2025-01-01 12:00", weather: { temperature: 25, feelst: 26, humidity: 60, img: "0", info: "晴" }, wind: { speed: 12 } }, predict: { detail: [{ date: "2025-01-01", day: { weather: { info: "晴", img: "0", temperature: "28" } }, night: { weather: { info: "晴", img: "0", temperature: "18" } } }] } } }));
     }) as typeof fetch;
 
     const result = await fetchWeather("上海");
 
-    expect(requestedUrl).toContain("stationid=58367");
+    expect(requestedForecastUrl).toContain("stationid=WwcJd");
     expect(result.city).toBe("上海");
   });
 

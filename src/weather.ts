@@ -15,14 +15,19 @@ export function weatherIcon(condition: string): string {
   return "☁";
 }
 
+function validatePayload(payload: unknown): Record<string, unknown> {
+  if (!payload || typeof payload !== "object") throw new WeatherError("service", "天气服务返回的数据无效，请稍后重试。");
+  const result = payload as Record<string, unknown>;
+  if (result.code !== undefined && result.code !== 0 && result.code !== "0") throw new WeatherError("service", "天气服务返回的数据无效，请稍后重试。");
+  return result;
+}
+
 async function fetchJson(url: string): Promise<Record<string, unknown>> {
   try {
     const response = await fetch(url);
     if (response.status === 429) throw new WeatherError("rate", "天气服务暂时限流，请稍后重试。");
     if (!response.ok) throw new WeatherError("service", `天气服务返回 HTTP ${response.status}。`);
-    const payload = await response.json() as Record<string, unknown>;
-    if (payload.code !== undefined && payload.code !== 0 && payload.code !== "0") throw new WeatherError("service", "天气服务返回的数据无效，请稍后重试。");
-    return payload;
+    return validatePayload(await response.json());
   } catch (error) {
     if (error instanceof WeatherError) throw error;
     throw new WeatherError("network", "无法连接天气服务，请检查网络后重试。");
@@ -34,23 +39,22 @@ function toNumber(value: unknown, fallback: number): number {
   return Number.isFinite(result) ? result : fallback;
 }
 
-type CmaStation = { id: string; city: string; country: string };
+type NmcStation = { id: string; city: string; province: string; url: string };
 
-const cityStationAliases: Record<string, CmaStation> = {
-  上海: { id: "58367", city: "上海", country: "中国" },
-  上海市: { id: "58367", city: "上海", country: "中国" },
-};
-
-function stationFromValue(value: unknown): CmaStation | null {
+function stationFromValue(value: unknown): NmcStation | null {
   if (typeof value !== "string") return null;
-  const [id, city, , country] = value.split("|");
-  if (!id || !city) return null;
-  return { id, city, country: country || "中国" };
+  const [id, city, province, url] = value.split("|");
+  if (!id || !city || !province || !url) return null;
+  return { id, city, province, url };
 }
 
 function conditionFromDay(day: Record<string, unknown>): string {
-  const dayText = String(day.dayText ?? "").trim();
-  const nightText = String(day.nightText ?? "").trim();
+  const dayWeather = day.day as Record<string, unknown> | undefined;
+  const nightWeather = day.night as Record<string, unknown> | undefined;
+  const dayInfo = dayWeather?.weather as Record<string, unknown> | undefined;
+  const nightInfo = nightWeather?.weather as Record<string, unknown> | undefined;
+  const dayText = String(dayInfo?.info ?? "").trim();
+  const nightText = String(nightInfo?.info ?? "").trim();
   if (dayText && nightText && dayText !== nightText) return `${dayText}转${nightText}`;
   return dayText || nightText || "天气变化";
 }
@@ -59,32 +63,36 @@ export async function fetchWeather(city: string): Promise<WeatherResult> {
   const query = city.trim();
   if (!query) throw new WeatherError("empty", "请输入城市名称。");
 
-  const directStation = cityStationAliases[query];
-  let station: CmaStation | undefined = directStation;
-  if (!station) {
-    const autocompleteUrl = `https://weather.cma.cn/api/autocomplete?q=${encodeURIComponent(query)}&limit=10&timestamp=${Date.now()}`;
-    const autocomplete = await fetchJson(autocompleteUrl);
-    const stations = Array.isArray(autocomplete.data) ? autocomplete.data.map(stationFromValue).filter((item): item is CmaStation => item !== null) : [];
-    station = stations.find((item) => item.city === query)
-      ?? stations.find((item) => item.city.includes(query) || query.includes(item.city))
-      ?? (stations.length === 1 ? stations[0] : undefined);
-  }
+  const autocompleteUrl = `https://www.nmc.cn/essearch/api/autocomplete?q=${encodeURIComponent(query)}&_=${Date.now()}`;
+  const autocomplete = await fetchJson(autocompleteUrl);
+  const stations = Array.isArray(autocomplete.data) ? autocomplete.data.map(stationFromValue).filter((item): item is NmcStation => item !== null) : [];
+  const station = stations.find((item) => item.city === query)
+    ?? stations.find((item) => item.city.includes(query) || query.includes(item.city))
+    ?? (stations.length === 1 ? stations[0] : undefined);
   if (!station) throw new WeatherError("empty", "没有找到这个城市，请尝试更完整的城市名称。");
 
-  const forecastUrl = `https://weather.cma.cn/api/weather/view?stationid=${encodeURIComponent(station.id)}`;
+  const forecastUrl = `https://www.nmc.cn/rest/weather?stationid=${encodeURIComponent(station.id)}&_=${Date.now()}`;
   const forecast = await fetchJson(forecastUrl);
   const data = forecast.data as Record<string, unknown> | undefined;
-  const location = data?.location as Record<string, unknown> | undefined;
-  const current = data?.now as Record<string, unknown> | undefined;
-  const daily = Array.isArray(data?.daily) ? data.daily as Array<Record<string, unknown>> : [];
+  const real = data?.real as Record<string, unknown> | undefined;
+  const current = real?.weather as Record<string, unknown> | undefined;
+  const currentWind = real?.wind as Record<string, unknown> | undefined;
+  const predict = data?.predict as Record<string, unknown> | undefined;
+  const daily = Array.isArray(predict?.detail) ? predict.detail as Array<Record<string, unknown>> : [];
   const firstDay = daily[0];
   const temperature = Number(current?.temperature);
-  if (!location || !current || !Number.isFinite(temperature) || !firstDay) throw new WeatherError("service", "天气服务返回的数据不完整，请稍后重试。");
+  if (!real || !current || !predict || !Number.isFinite(temperature) || !firstDay) throw new WeatherError("service", "天气服务返回的数据不完整，请稍后重试。");
 
-  const condition = String(current.weather ?? current.weatherText ?? conditionFromDay(firstDay));
+  const condition = String(current.info ?? conditionFromDay(firstDay));
   return {
-    city: directStation?.city ?? String(location.name ?? station.city), country: station.country, timezone: String(location.timezone ?? "Asia/Shanghai"), fetchedAt: String(data?.lastUpdate ?? new Date().toISOString()),
-    temperature, apparent: toNumber(current.feelst ?? current.apparentTemperature, temperature), humidity: toNumber(current.humidity, 0), wind: toNumber(current.windSpeed, 0), code: toNumber(current.weatherCode ?? firstDay.dayCode, -1), condition,
-    days: daily.slice(0, 5).map((day) => ({ date: String(day.date ?? ""), code: toNumber(day.dayCode, -1), condition: conditionFromDay(day), high: toNumber(day.high, 0), low: toNumber(day.low, 0) })).filter((day) => day.date),
+    city: station.city, country: "中国", timezone: "Asia/Shanghai", fetchedAt: String(real.publish_time ?? new Date().toISOString()),
+    temperature, apparent: toNumber(current.feelst, temperature), humidity: toNumber(current.humidity, 0), wind: toNumber(currentWind?.speed, 0), code: toNumber(current.img, -1), condition,
+    days: daily.slice(0, 5).map((day) => {
+      const dayWeather = day.day as Record<string, unknown> | undefined;
+      const nightWeather = day.night as Record<string, unknown> | undefined;
+      const dayInfo = dayWeather?.weather as Record<string, unknown> | undefined;
+      const nightInfo = nightWeather?.weather as Record<string, unknown> | undefined;
+      return { date: String(day.date ?? ""), code: toNumber(dayInfo?.img, -1), condition: conditionFromDay(day), high: toNumber(dayInfo?.temperature, 0), low: toNumber(nightInfo?.temperature, 0) };
+    }).filter((day) => day.date),
   };
 }
