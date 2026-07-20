@@ -81,18 +81,12 @@ a { color: var(--accent); }
 
 main { min-width: 0; padding: 48px clamp(22px, 5vw, 72px) 70px; }
 .home-view, .tool-view { max-width: 1120px; margin: 0 auto; }
-.hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 30px; padding: 28px 0 34px; }
+.hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 30px; padding: 16px 0 34px; }
 .eyebrow { color: var(--accent); font-size: 10px; font-weight: 800; letter-spacing: .16em; margin: 0 0 12px; }
 h1, h2, h3, p { margin-top: 0; }
 h1 { font-size: clamp(32px, 5vw, 58px); line-height: 1.04; letter-spacing: -.045em; margin-bottom: 18px; }
 h1 span { color: var(--accent); }
 .hero-copy { max-width: 540px; color: var(--muted); line-height: 1.75; font-size: 14px; margin: 0; }
-.hero-signal { display: flex; align-items: center; gap: 16px; padding: 17px 19px; border: 1px solid var(--line); border-radius: 12px; min-width: 170px; background: var(--surface); box-shadow: var(--shadow); }
-.signal-ring { width: 30px; height: 30px; border: 2px solid var(--accent); border-radius: 50%; position: relative; }
-.signal-ring::after { content: ""; position: absolute; inset: 7px; border-radius: 50%; background: var(--accent); }
-.hero-signal strong, .hero-signal small { display: block; }
-.hero-signal strong { font-size: 12px; }
-.hero-signal small { margin-top: 4px; color: var(--muted); font-size: 10px; }
 .privacy-banner { padding: 14px 17px; border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--line)); background: var(--accent-soft); border-radius: 10px; display: flex; gap: 12px; align-items: flex-start; margin-bottom: 34px; }
 .privacy-icon { color: var(--accent); font-size: 21px; line-height: 1; }
 .privacy-banner strong { font-size: 12px; }
@@ -320,7 +314,6 @@ footer span { color: var(--muted-soft); }
   main { padding: 26px 15px 50px; }
   .hero { display: block; padding: 12px 0 25px; }
   h1 { font-size: 37px; }
-  .hero-signal { margin-top: 22px; width: fit-content; }
   .privacy-banner { margin-bottom: 22px; }
   .home-toolbar { display: block; }
   .search-box { min-width: 100%; }

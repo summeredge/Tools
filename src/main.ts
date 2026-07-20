@@ -145,7 +145,7 @@ function renderToolCards(): string {
 function renderHome(): string {
   const modeLabel = state.homeMode === "favorites" ? "我的收藏" : state.homeMode === "recent" ? "最近使用" : "全部工具";
   return `<section class="home-view">
-    <div class="hero"><div><p class="eyebrow">DAILY WORKBENCH / 01</p><h1>把每天会用到的<br><span>小工具放在一起。</span></h1><p class="hero-copy">一个面向小团队的通用工具箱。无需登录，计算与文本处理默认在当前浏览器完成。</p></div><div class="hero-signal"><span class="signal-ring"></span><div><strong>本地优先</strong><small>Local-first utilities</small></div></div></div>
+    <div class="hero"><div><p class="eyebrow">DAILY WORKBENCH / 01</p><h1>把每天会用到的<br><span>小工具放在一起。</span></h1><p class="hero-copy">一个面向小团队的通用工具箱。无需登录，计算与文本处理默认在当前浏览器完成。</p></div></div>
     <div class="privacy-banner"><span class="privacy-icon">⌁</span><div><strong>隐私边界清晰</strong><p>本地工具输入默认仅在当前浏览器处理；天气和化学品安全查询会向对应公开数据服务发送搜索内容。本站不含账号、同步、埋点或公司内部资料。</p></div></div>
     <div class="home-toolbar"><label class="search-box"><span>⌕</span><input id="tool-search" type="search" value="${escapeHtml(state.query)}" placeholder="搜索工具名称或关键词…" autocomplete="off"><kbd>/</kbd></label><div class="category-chips" aria-label="工具分类">${categories.map((category) => `<button class="chip ${state.category === category ? "active" : ""}" data-category="${escapeHtml(category)}">${escapeHtml(category)}</button>`).join("")}</div></div>
     <div class="section-heading"><div><p class="eyebrow">TOOL INDEX</p><h2>${modeLabel}</h2></div><span class="result-count">${filteredTools().length} / ${tools.length}</span></div>
