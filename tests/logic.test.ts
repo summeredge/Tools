@@ -64,7 +64,6 @@ describe("化学品安全信息服务", () => {
     expect(result.pictograms).toEqual(["Flammable"]);
     expect(result.signal).toBe("Danger");
     expect(result.hazards).toContain("H225");
-    expect(result.precautions).toContain("P210");
     expect(result.safetySections).toEqual(expect.arrayContaining([
       expect.objectContaining({ title: "健康危害", content: expect.stringContaining("Toxic by inhalation") }),
       expect.objectContaining({ title: "急救措施", content: expect.stringContaining("Fresh air") }),

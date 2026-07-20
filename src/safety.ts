@@ -8,7 +8,6 @@ export type SafetyResult = {
   pictograms: string[];
   signal: string;
   hazards: string;
-  precautions: string;
   safetySections: SafetySection[];
   fetchedAt: string;
   nameSource: "PubChem" | "Wikidata";
@@ -188,7 +187,6 @@ export async function fetchSafety(query: string): Promise<SafetyResult> {
     pictograms: ghs ? informationExtras(ghs, "Pictogram(s)") : [],
     signal: ghs ? informationText(ghs, "Signal") || "未提供" : "未提供",
     hazards: ghs ? informationText(ghs, "GHS Hazard Statements") || "未提供" : "未提供",
-    precautions: ghs ? informationText(ghs, "Precautionary Statement Codes") || "未提供" : "未提供",
     safetySections,
     fetchedAt: new Date().toISOString(),
     nameSource: resolved.source,
