@@ -11,8 +11,13 @@ import {
 } from "./logic";
 import { fetchSafety, SafetyError, type SafetyResult } from "./safety";
 import { fetchWeather, weatherCodeText, weatherIcon, WeatherError, type WeatherResult } from "./weather";
+import { bindGasFlow, renderGasFlow } from "./tools/gas-flow";
+import { bindPipePressure, renderPipePressure } from "./tools/pipe-pressure-drop";
+import { bindTankVolume, renderTankVolume } from "./tools/tank-volume";
+import { bindHeatExchanger, renderHeatExchanger } from "./tools/heat-exchanger";
+import type { ToolRuntime } from "./tools/runtime";
 
-type ToolId = "weather" | "safety" | "if97" | "markdown" | "text" | "diff";
+type ToolId = "weather" | "safety" | "if97" | "markdown" | "text" | "diff" | "gas-flow" | "pipe-pressure-drop" | "tank-volume" | "heat-exchanger";
 type HomeMode = "all" | "favorites" | "recent";
 type Theme = "system" | "light" | "dark";
 
@@ -22,6 +27,10 @@ const tools: Tool[] = [
   { id: "weather", name: "天气查询", description: "查询城市当前天气与未来 5 日预报", category: "外部数据", mark: "☁", keywords: ["天气", "温度", "预报", "城市"] },
   { id: "safety", name: "化学品安全信息", description: "查询 PubChem 安全摘要与官方数据库链接", category: "外部数据", mark: "SDS", keywords: ["化学品", "SDS", "MSDS", "CAS", "安全", "GHS"] },
   { id: "if97", name: "IF97 水和蒸汽物性", description: "按压力和温度计算水与蒸汽的热力学物性", category: "过程工程", mark: "IF97", keywords: ["水", "蒸汽", "物性", "压力", "温度", "IAPWS"] },
+  { id: "gas-flow", name: "气体工况/标况换算", description: "按状态方程换算实际与标准体积流量", category: "过程工程", mark: "Q", keywords: ["气体", "工况", "标况", "流量", "压缩因子", "湿基", "干基"] },
+  { id: "pipe-pressure-drop", name: "管道流速与压降", description: "使用 Darcy–Weisbach 计算圆管流速、摩阻与压降", category: "过程工程", mark: "ΔP", keywords: ["管道", "流速", "压降", "Reynolds", "Darcy", "Colebrook"] },
+  { id: "tank-volume", name: "储罐液位—体积换算", description: "计算立式、卧式圆筒罐和球罐液位与体积", category: "过程工程", mark: "V", keywords: ["储罐", "液位", "体积", "装填率", "圆筒", "球罐"] },
+  { id: "heat-exchanger", name: "换热器热量平衡与 LMTD", description: "计算热负荷、对数平均温差和 UA", category: "过程工程", mark: "LMTD", keywords: ["换热器", "热量", "热负荷", "LMTD", "UA", "逆流", "并流"] },
   { id: "markdown", name: "Markdown", description: "边写边预览，安全净化并下载草稿", category: "文档", mark: "MD", keywords: ["文档", "预览", "表格", "代码"] },
   { id: "text", name: "文本处理", description: "统计、清理、排序、去重与大小写转换", category: "文本", mark: "Aa", keywords: ["字符", "行", "空白", "排序"] },
   { id: "diff", name: "文本对比", description: "逐行查看新增、删除与未变化内容", category: "文本", mark: "Δ", keywords: ["差异", "比较", "新增", "删除"] },
@@ -91,6 +100,8 @@ function downloadText(filename: string, content: string, mimeType: string): void
   window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 }
 
+const toolRuntime: ToolRuntime = { storage, feedback, copyText, downloadText };
+
 function renderHeader(): string {
   const themeLabel = state.theme === "system" ? "跟随系统" : state.theme === "light" ? "浅色" : "深色";
   return `<header class="topbar">
@@ -147,6 +158,10 @@ function renderToolShell(tool: Tool): string {
 }
 
 function renderToolContent(id: ToolId): string {
+  if (id === "gas-flow") return renderGasFlow(storage);
+  if (id === "pipe-pressure-drop") return renderPipePressure(storage);
+  if (id === "tank-volume") return renderTankVolume(storage);
+  if (id === "heat-exchanger") return renderHeatExchanger(storage);
   switch (id) {
     case "weather": return `<div class="weather-tool"><div class="weather-search"><label for="weather-city">城市</label><div class="calc-input-row"><input id="weather-city" type="search" value="${escapeHtml(storage.read<string>("workbench:weather-city", ""))}" placeholder="例如：上海、北京" autocomplete="off"><button class="button primary" id="weather-search-button">查询天气</button></div><p class="hint">默认摄氏度，不强制获取浏览器定位。数据来自 <a href="https://www.nmc.cn/publish/forecast.html" target="_blank" rel="noreferrer">中央气象台（中国气象局）↗</a>。</p></div><div id="weather-status" class="feedback" aria-live="polite">请输入城市开始查询。</div><div id="weather-result"></div></div>`;
     case "safety": return `<div class="safety-tool"><div class="safety-search"><label for="safety-query">化学品名称或 CAS 号</label><div class="calc-input-row"><input id="safety-query" type="search" value="${escapeHtml(storage.read<string>("workbench:safety-query", ""))}" placeholder="例如：甲醇、ethanol、64-17-5" autocomplete="off"><button class="button primary" id="safety-search-button">查询安全信息</button></div><p class="hint">支持中文名称、英文名称和 CAS 号。中文名称会先通过 <a href="https://www.wikidata.org/" target="_blank" rel="noreferrer">Wikidata</a> 做名称映射，再从 <a href="https://pubchem.ncbi.nlm.nih.gov/" target="_blank" rel="noreferrer">PubChem</a> 获取安全摘要；结果不替代具体产品的最新版供应商 SDS。</p></div><div id="safety-status" class="feedback" aria-live="polite">请输入化学品名称或 CAS 号。</div><div id="safety-result"></div></div>`;
@@ -227,7 +242,7 @@ function bindDiff(): void {
   document.querySelector("#diff-clear")?.addEventListener("click", () => { left.value = ""; right.value = ""; output.innerHTML = ""; feedback(status, "已清空", "ok"); });
 }
 
-function bindTool(id: ToolId): void { if (id === "weather") bindWeather(); if (id === "safety") bindSafety(); if (id === "markdown") bindMarkdown(); if (id === "text") bindText(); if (id === "diff") bindDiff(); }
+function bindTool(id: ToolId): void { if (id === "weather") bindWeather(); if (id === "safety") bindSafety(); if (id === "markdown") bindMarkdown(); if (id === "text") bindText(); if (id === "diff") bindDiff(); if (id === "gas-flow") bindGasFlow(toolRuntime); if (id === "pipe-pressure-drop") bindPipePressure(toolRuntime); if (id === "tank-volume") bindTankVolume(toolRuntime); if (id === "heat-exchanger") bindHeatExchanger(toolRuntime); }
 
 function renderApp(): void {
   const raw = window.location.hash.slice(1) as ToolId | "home";
