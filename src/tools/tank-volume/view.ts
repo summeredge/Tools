@@ -1,14 +1,24 @@
-import { formatToolNumber, formatToolPercent, type ToolStorage } from "../runtime";
+import { formatToolNumber, formatToolPercent, renderProcessGuidance, type ProcessGuidance, type ToolStorage } from "../runtime";
 import type { TankCalculationMode, TankGeometry, TankResult, TankTableRow } from "./logic";
 
 export type TankFormState = { geometry: TankGeometry; diameterM: number; heightOrLengthM: number; mode: TankCalculationMode; value: number; stepPercent: 1 | 2 | 5 };
 export const DEFAULT_TANK_FORM: TankFormState = { geometry: "vertical-cylinder", diameterM: 2, heightOrLengthM: 5, mode: "level", value: 2, stepPercent: 5 };
 
+export const TANK_VOLUME_GUIDANCE: ProcessGuidance = {
+  assumptions: ["立式罐按圆柱体计算；卧式罐按圆弓形截面积乘筒长计算。", "球罐按球冠体积计算，液位范围为球体直径。", "体积或装填率反算液位使用二分法。"],
+  applicability: ["支持立式平底圆筒罐、卧式平封头圆筒罐和球罐。", "可生成 1%、2% 或 5% 步长的液位—体积对照表。"],
+  limitations: ["不包含椭圆封头、碟形封头、锥底或不规则标定罐。", "未考虑罐体变形、安装倾斜和实际标定偏差。"],
+};
+
 function options(values: Array<[string, string]>, selected: string): string { return values.map(([value, label]) => `<option value="${value}" ${value === selected ? "selected" : ""}>${label}</option>`).join(""); }
 
-export function renderTankVolume(storage: ToolStorage): string {
+function renderTankVolumeForm(storage: ToolStorage): string {
   const state = storage.read<TankFormState>("workbench:tank-volume", DEFAULT_TANK_FORM);
   return `<div class="process-tool tank-volume-tool"><div class="pe-input-section"><div class="pe-form-grid"><label>罐体形状<select id="tank-geometry">${options([["vertical-cylinder", "立式平底圆筒罐"], ["horizontal-cylinder", "卧式平封头圆筒罐"], ["sphere", "球罐"]], state.geometry)}</select></label><label>直径<input id="tank-diameter" type="number" value="${state.diameterM}"><small>m</small></label><label id="tank-height-label">高度 / 筒长<input id="tank-height-length" type="number" value="${state.heightOrLengthM}"><small id="tank-height-unit">m</small></label><label>计算方向<select id="tank-mode">${options([["level", "输入液位 → 体积"], ["volume", "输入体积 → 液位"], ["fill", "输入装填率 → 液位"]], state.mode)}</select></label><label id="tank-value-label">液位<input id="tank-value" type="number" value="${state.value}"><small id="tank-value-unit">m</small></label><label>对照表步长<select id="tank-step">${options([["1", "1%"], ["2", "2%"], ["5", "5%"]], String(state.stepPercent))}</select></label></div><div class="pe-actions"><button class="button primary" id="tank-calculate">计算</button><button class="button secondary" id="tank-reset">恢复默认值</button></div><div class="feedback" id="tank-feedback" aria-live="polite">请输入参数后计算。</div></div><div class="pe-output" id="tank-output"><div class="pe-empty">计算结果将显示在这里。</div></div></div>`;
+}
+
+export function renderTankVolume(storage: ToolStorage): string {
+  return `${renderTankVolumeForm(storage)}${renderProcessGuidance(TANK_VOLUME_GUIDANCE)}`;
 }
 
 function renderTankResultBase(result: TankResult, rows: TankTableRow[]): string {

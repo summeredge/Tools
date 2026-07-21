@@ -79,6 +79,11 @@ export function calculateTank(input: TankInput): TankResult {
   return { geometry: input.geometry, diameterM: input.diameterM, heightOrLengthM: input.heightOrLengthM, capacityM3: capacity, levelM, volumeM3, fillFraction: volumeM3 / capacity };
 }
 
+export function convertTankDisplayValue(input: TankInput, nextMode: TankCalculationMode): number {
+  const result = calculateTank(input);
+  return nextMode === "level" ? result.levelM : nextMode === "volume" ? result.volumeM3 : result.fillFraction * 100;
+}
+
 export function generateTankTable(input: Omit<TankInput, "mode" | "value">, stepPercent: 1 | 2 | 5): TankTableRow[] {
   const { radius, height, capacity } = dimensions(input);
   const rows: TankTableRow[] = [];

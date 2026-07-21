@@ -1,4 +1,4 @@
-import { escapeHtml, formatToolNumber, type ToolStorage } from "../runtime";
+import { escapeHtml, formatToolNumber, renderProcessGuidance, type ProcessGuidance, type ToolStorage } from "../runtime";
 import type { GasFlowResult, MoistureConversion } from "./logic";
 
 export type GasFlowFormState = {
@@ -16,13 +16,23 @@ export const DEFAULT_GAS_FLOW_FORM: GasFlowFormState = {
   zActual: 1, zStandard: 1, molecularWeight: 28.97, moistureConversion: "none", moistureFraction: 0,
 };
 
+export const GAS_FLOW_GUIDANCE: ProcessGuidance = {
+  assumptions: ["按同一摩尔流量使用状态方程换算；摄氏温度先转换为绝对温度。", "实际状态和标准状态分别使用输入的绝压与压缩因子 Z。", "湿基/干基仅按输入水蒸气摩尔分数或体积分数换算。"],
+  applicability: ["适用于气体实际体积流量与标准体积流量的估算。", "标准温度、标准压力和压缩因子可按项目定义输入。"],
+  limitations: ["不处理冷凝、化学反应和组成随状态变化。", "干基转湿基时含水率不能等于 100%。"],
+};
+
 function selectOptions(values: Array<[string, string]>, selected: string): string {
   return values.map(([value, label]) => `<option value="${value}" ${value === selected ? "selected" : ""}>${label}</option>`).join("");
 }
 
-export function renderGasFlow(storage: ToolStorage): string {
+function renderGasFlowForm(storage: ToolStorage): string {
   const state = storage.read<GasFlowFormState>("workbench:gas-flow", DEFAULT_GAS_FLOW_FORM);
   return `<div class="process-tool gas-flow-tool"><div class="pe-input-section"><div class="pe-form-grid"><label>输入流量<input id="gas-flow-value" type="number" value="${state.flowValue}"></label><label>流量单位<select id="gas-flow-unit">${selectOptions([["m3/h", "m³/h"], ["L/min", "L/min"], ["m3/s", "m³/s"]], state.flowUnit)}</select></label><label>流量基准<select id="gas-flow-basis">${selectOptions([["actual", "实际工况"], ["standard", "标准工况"]], state.flowBasis)}</select></label><label>实际温度<input id="gas-actual-temperature" type="number" value="${state.actualTemperature}"><select id="gas-actual-temperature-unit">${selectOptions([["C", "°C"], ["K", "K"]], state.actualTemperatureUnit)}</select></label><label>实际压力<input id="gas-actual-pressure" type="number" value="${state.actualPressure}"><select id="gas-pressure-unit">${selectOptions([["kPa", "kPa"], ["bar", "bar"], ["MPa", "MPa"]], state.pressureUnit)}</select></label><label>实际压力类型<select id="gas-pressure-mode">${selectOptions([["absolute", "绝压"], ["gauge", "表压"]], state.pressureMode)}</select></label><label>当地大气压（表压时使用）<input id="gas-atmospheric-pressure" type="number" value="${state.atmosphericPressure}"> <small>kPa</small></label><label>标准温度<input id="gas-standard-temperature" type="number" value="${state.standardTemperature}"><select id="gas-standard-temperature-unit">${selectOptions([["C", "°C"], ["K", "K"]], state.standardTemperatureUnit)}</select></label><label>标准绝压<input id="gas-standard-pressure" type="number" value="${state.standardPressure}"> <small>kPa</small></label><label>实际状态 Z<input id="gas-z-actual" type="number" step="any" value="${state.zActual}"></label><label>标准状态 Z<input id="gas-z-standard" type="number" step="any" value="${state.zStandard}"></label><label>平均分子量（可选）<input id="gas-molecular-weight" type="number" step="any" value="${state.molecularWeight}"><small>kg/kmol</small></label><label>湿基/干基换算<select id="gas-moisture-conversion">${selectOptions([["none", "不换算"], ["wet-to-dry", "湿基 → 干基"], ["dry-to-wet", "干基 → 湿基"]], state.moistureConversion)}</select></label><label>水蒸气摩尔分数/体积分数<input id="gas-moisture-fraction" type="number" min="0" max="1" step="any" value="${state.moistureFraction}"></label></div><div class="pe-actions"><button class="button primary" id="gas-flow-calculate">计算</button><button class="button secondary" id="gas-flow-reset">恢复默认值</button></div><div class="feedback" id="gas-flow-feedback" aria-live="polite">请输入状态点后计算。</div></div><div class="pe-output" id="gas-flow-output"><div class="pe-empty">计算结果将显示在这里。</div></div></div>`;
+}
+
+export function renderGasFlow(storage: ToolStorage): string {
+  return `${renderGasFlowForm(storage)}${renderProcessGuidance(GAS_FLOW_GUIDANCE)}`;
 }
 
 export function renderGasFlowResult(result: GasFlowResult): string {

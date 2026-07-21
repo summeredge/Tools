@@ -1,14 +1,24 @@
-import { escapeHtml, formatToolNumber, formatToolPercent, type ToolStorage } from "../runtime";
+import { escapeHtml, formatToolNumber, formatToolPercent, renderProcessGuidance, type ProcessGuidance, type ToolStorage } from "../runtime";
 import type { HeatExchangerMode, HeatExchangerPattern, HeatExchangerResult } from "./logic";
 
 export type HeatExchangerFormState = { mode: HeatExchangerMode; pattern: HeatExchangerPattern; correctionFactor: number; hotFlowKgH: number; hotCpKjKgK: number; hotInC: number; hotOutC: number; coldFlowKgH: number; coldCpKjKgK: number; coldInC: number; coldOutC: number; hotHinKjKg: number; hotHoutKjKg: number; coldHinKjKg: number; coldHoutKjKg: number };
 export const DEFAULT_HEAT_EXCHANGER_FORM: HeatExchangerFormState = { mode: "sensible", pattern: "counter", correctionFactor: 1, hotFlowKgH: 1000, hotCpKjKgK: 4.2, hotInC: 100, hotOutC: 80, coldFlowKgH: 800, coldCpKjKgK: 4.2, coldInC: 20, coldOutC: 45, hotHinKjKg: 0, hotHoutKjKg: 0, coldHinKjKg: 0, coldHoutKjKg: 0 };
 
+export const HEAT_EXCHANGER_GUIDANCE: ProcessGuidance = {
+  assumptions: ["按稳态热平衡计算，显热模式使用 m × Cp × ΔT，焓差模式使用 m × Δh。", "默认忽略环境热损失；两侧热负荷均有效时取绝对值平均作为 UA 基准。", "LMTD 按逆流或并流两端温差计算，并乘以修正系数 F。"],
+  applicability: ["适用于热侧和冷侧热负荷、LMTD 及 UA 的初步估算。", "两端温差均为正且不存在温度交叉时计算 LMTD。"],
+  limitations: ["不计算相平衡、冷凝膜系数、污垢热阻或换热器结构设计。", "热量不平衡超过 5% 时仍显示结果，但需要检查输入数据。"],
+};
+
 function options(values: Array<[string, string]>, selected: string): string { return values.map(([value, label]) => `<option value="${value}" ${value === selected ? "selected" : ""}>${label}</option>`).join(""); }
 
-export function renderHeatExchanger(storage: ToolStorage): string {
+function renderHeatExchangerForm(storage: ToolStorage): string {
   const state = storage.read<HeatExchangerFormState>("workbench:heat-exchanger", DEFAULT_HEAT_EXCHANGER_FORM);
   return `<div class="process-tool heat-exchanger-tool"><div class="pe-input-section"><div class="pe-form-grid"><label>计算模式<select id="hx-mode">${options([["sensible", "显热 m × Cp × ΔT"], ["enthalpy", "焓差 m × Δh"]], state.mode)}</select></label><label>流型<select id="hx-pattern">${options([["counter", "逆流"], ["parallel", "并流"]], state.pattern)}</select></label><label>修正系数 F<input id="hx-factor" type="number" step="any" value="${state.correctionFactor}"><small>0 &lt; F ≤ 1</small></label></div><div class="hx-mode-panel" data-hx-panel="sensible"><div class="hx-side-grid"><fieldset><legend>热侧</legend><label>质量流量<input id="hx-hot-flow" type="number" value="${state.hotFlowKgH}"><small>kg/h</small></label><label>比热 Cp<input id="hx-hot-cp" type="number" value="${state.hotCpKjKgK}"><small>kJ/(kg·K)</small></label><label>入口温度<input id="hx-hot-in" type="number" value="${state.hotInC}"><small>°C</small></label><label>出口温度<input id="hx-hot-out" type="number" value="${state.hotOutC}"><small>°C</small></label></fieldset><fieldset><legend>冷侧</legend><label>质量流量<input id="hx-cold-flow" type="number" value="${state.coldFlowKgH}"><small>kg/h</small></label><label>比热 Cp<input id="hx-cold-cp" type="number" value="${state.coldCpKjKgK}"><small>kJ/(kg·K)</small></label><label>入口温度<input id="hx-cold-in" type="number" value="${state.coldInC}"><small>°C</small></label><label>出口温度<input id="hx-cold-out" type="number" value="${state.coldOutC}"><small>°C</small></label></fieldset></div></div><div class="hx-mode-panel" data-hx-panel="enthalpy" hidden><div class="hx-side-grid"><fieldset><legend>热侧</legend><label>质量流量<input id="hx-hot-flow-h" type="number" value="${state.hotFlowKgH}"><small>kg/h</small></label><label>入口焓<input id="hx-hot-hin" type="number" value="${state.hotHinKjKg}"><small>kJ/kg</small></label><label>出口焓<input id="hx-hot-hout" type="number" value="${state.hotHoutKjKg}"><small>kJ/kg</small></label><label>入口温度（可选）<input id="hx-hot-in-h" type="number" value="${state.hotInC}"><small>°C</small></label><label>出口温度（可选）<input id="hx-hot-out-h" type="number" value="${state.hotOutC}"><small>°C</small></label></fieldset><fieldset><legend>冷侧</legend><label>质量流量<input id="hx-cold-flow-h" type="number" value="${state.coldFlowKgH}"><small>kg/h</small></label><label>入口焓<input id="hx-cold-hin" type="number" value="${state.coldHinKjKg}"><small>kJ/kg</small></label><label>出口焓<input id="hx-cold-hout" type="number" value="${state.coldHoutKjKg}"><small>kJ/kg</small></label><label>入口温度（可选）<input id="hx-cold-in-h" type="number" value="${state.coldInC}"><small>°C</small></label><label>出口温度（可选）<input id="hx-cold-out-h" type="number" value="${state.coldOutC}"><small>°C</small></label></fieldset></div></div><div class="pe-actions"><button class="button primary" id="hx-calculate">计算</button><button class="button secondary" id="hx-reset">恢复默认值</button></div><div class="feedback" id="hx-feedback" aria-live="polite">请输入参数后计算。</div></div><div class="pe-output" id="hx-output"><div class="pe-empty">计算结果将显示在这里。</div></div></div>`;
+}
+
+export function renderHeatExchanger(storage: ToolStorage): string {
+  return `${renderHeatExchangerForm(storage)}${renderProcessGuidance(HEAT_EXCHANGER_GUIDANCE)}`;
 }
 
 function renderHeatExchangerResultBase(result: HeatExchangerResult): string {
