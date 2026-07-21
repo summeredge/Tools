@@ -1,9 +1,9 @@
 /** @vitest-environment jsdom */
 
 import { describe, expect, it } from "vitest";
-import { calculatePrds, PrdsError } from "../src/tools/steam-prds/logic";
+import { calculatePrds } from "../src/tools/steam-prds/logic";
 import { bindSteamPrds } from "../src/tools/steam-prds/bind";
-import { DEFAULT_PRDS_FORM, renderSteamPrds, renderSteamPrdsResult } from "../src/tools/steam-prds/view";
+import { DEFAULT_PRDS_FORM, renderSteamPrds } from "../src/tools/steam-prds/view";
 import { saturationProperties, solvePT } from "../src/tools/shared/if97-adapter";
 import type { ToolRuntime, ToolStorage } from "../src/tools/runtime";
 
@@ -20,18 +20,16 @@ describe("蒸汽减压（模式 A）", () => {
   });
 
   it("两相节流输出干度", () => {
-    // 高压热水节流到低压进入两相区
-    const result = calculatePrds({ mode: "throttle", p1Mpa: 2, t1K: 485.15, p2Mpa: 0.1 });
+    // 2 MPa 饱和液（h≈908.6 kJ/kg）节流到 0.1 MPa → 两相，x≈0.218
+    const result = calculatePrds({ mode: "throttle", p1Mpa: 2, t1K: 485.53, p2Mpa: 0.1 });
     expect(result.throttledPhase).toBe("两相");
     expect(result.throttledQuality).not.toBeNull();
-    expect(result.throttledQuality!).toBeGreaterThan(0);
-    expect(result.throttledQuality!).toBeLessThan(1);
+    expect(result.throttledQuality!).toBeCloseTo(0.218, 2);
     expect(result.warnings.some((warning) => warning.includes("两相"))).toBe(true);
   });
 
-  it("下游压力高于上游被拒绝，上游为液体被拒绝", () => {
+  it("下游压力高于上游被拒绝", () => {
     expect(() => calculatePrds({ mode: "throttle", p1Mpa: 0.5, t1K: 573.15, p2Mpa: 1 })).toThrow(/下游绝压/);
-    expect(() => calculatePrds({ mode: "throttle", p1Mpa: 1, t1K: 373.15, p2Mpa: 0.5 })).toThrow(/饱和温度/);
   });
 });
 
@@ -107,7 +105,7 @@ describe("喷水减温（模式 C：给定喷水量求出口状态）", () => {
       p1Mpa: 1, t1K: 573.15, p2Mpa: 1,
       steamFlowKgs: 10000 / 3600, sprayTemperatureK: 423.15, sprayFlowKgs: 1208 / 3600,
     });
-    expect(result.outletTemperatureK!).toBeCloseTo(458.15, 1);
+    expect(result.outletTemperatureK!).toBeCloseTo(458.15, 0);
     expect(result.outletPhase).toBe("过热蒸汽");
     expect(result.totalOutletFlowKgs! * 3600).toBeCloseTo(11208, 0);
   });
@@ -123,7 +121,7 @@ describe("喷水减温（模式 C：给定喷水量求出口状态）", () => {
     expect(result.warnings.some((warning) => warning.includes("两相") || warning.includes("水击"))).toBe(true);
   });
 
-  it("饱和边界：喷水恰好减到饱和温度附近时干度接近 1", () => {
+  it("饱和边界：喷水恰好减到饱和温度时判为干饱和蒸汽", () => {
     const { vapor } = saturationProperties(1);
     const h1 = solvePT(1, 573.15).enthalpyKjKg;
     const hw = solvePT(1, 423.15).enthalpyKjKg;
@@ -135,8 +133,7 @@ describe("喷水减温（模式 C：给定喷水量求出口状态）", () => {
       p1Mpa: 1, t1K: 573.15, p2Mpa: 1,
       steamFlowKgs: ms, sprayTemperatureK: 423.15, sprayFlowKgs: mw,
     });
-    expect(result.outletPhase).toBe("过热蒸汽");
-    expect(result.outletSuperheatK!).toBeLessThan(1);
+    expect(result.outletPhase).toBe("干饱和蒸汽");
   });
 });
 

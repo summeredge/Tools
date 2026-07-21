@@ -1,6 +1,6 @@
 // 蒸汽减压与喷水减温：绝热节流（h2=h1）+ 绝热喷水混合能量平衡。
 // 所有压力均为绝对压力；水焓与蒸汽焓均来自同一 IF97 实现。
-import { saturationTemperature, solvePH, solvePT, type If97PhState, type If97State } from "../shared/if97-adapter";
+import { saturationTemperature, solvePH, solvePT, type If97PhState } from "../shared/if97-adapter";
 
 export type PrdsMode = "throttle" | "target-temperature" | "fixed-water";
 
@@ -66,7 +66,13 @@ function checkBase(input: PrdsBaseInput): void {
 }
 
 function phaseOf(ph: If97PhState): PrdsPhase {
-  if (ph.phase === "wet") return ph.quality !== null && ph.quality <= 0 ? "饱和液体" : "两相";
+  if (ph.phase === "wet") {
+    if (ph.quality !== null) {
+      if (ph.quality <= 0) return "饱和液体";
+      if (ph.quality >= 0.9995) return "干饱和蒸汽";
+    }
+    return "两相";
+  }
   if (ph.phase === "sat-liquid") return "过冷液体";
   return "过热蒸汽";
 }
@@ -87,11 +93,11 @@ function checkSprayPressure(sprayPressureMpa: number | undefined, p2Mpa: number)
 function throttle(input: PrdsThrottleInput): PrdsResult {
   checkBase(input);
   const upstream = solvePT(input.p1Mpa, input.t1K);
-  const tsat1 = safeTsat(input.p1Mpa);
-  if (tsat1 !== null && input.t1K < tsat1 - 0.02) throw new PrdsError("上游温度低于该压力下饱和温度，介质不是蒸汽，无法按蒸汽减压计算。");
   const p2Tsat = saturationTemperature(input.p2Mpa);
   const throttled = solvePH(input.p2Mpa, upstream.enthalpyKjKg);
   const phase = phaseOf(throttled);
+  const warnings: string[] = [];
+  if (phase === "两相" || phase === "饱和液体") warnings.push("节流后进入两相区，输出干度 x；请复核下游管道携水与冲蚀风险。");
   return {
     mode: "throttle",
     upstreamEnthalpyKjKg: upstream.enthalpyKjKg,
@@ -108,7 +114,7 @@ function throttle(input: PrdsThrottleInput): PrdsResult {
     waterSteamRatio: null,
     totalOutletFlowKgs: null,
     energyResidual: 0,
-    warnings: phase === "两相" || phase === "饱和液体" ? ["节流后进入两相区，输出干度 x；请复核下游管道携水与冲蚀风险。"] : [],
+    warnings,
   };
 }
 
@@ -207,7 +213,7 @@ function fixedWater(input: PrdsFixedWaterInput): PrdsResult {
   const phase = phaseOf(state);
   if (phase === "两相" || phase === "饱和液体" || phase === "过冷液体") {
     warnings.push("出口进入两相区或液相区，减温过度，存在水击与夹带风险。");
-  } else if (state.temperatureK !== null && state.temperatureK - p2Tsat < MIN_SUPERHEAT_K) {
+  } else if (phase !== "干饱和蒸汽" && state.temperatureK !== null && state.temperatureK - p2Tsat < MIN_SUPERHEAT_K) {
     warnings.push(`出口过热度仅 ${(state.temperatureK - p2Tsat).toFixed(1)} K，低于 ${MIN_SUPERHEAT_K} K，存在夹带水风险。`);
   }
   return {
