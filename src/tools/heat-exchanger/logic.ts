@@ -57,11 +57,15 @@ export function calculateHeatExchanger(input: HeatExchangerInput): HeatExchanger
   const hotIn = input.hot.inletTemperatureK; const hotOut = input.hot.outletTemperatureK; const coldIn = input.cold.inletTemperatureK; const coldOut = input.cold.outletTemperatureK;
   let deltaT1K: number | null = null; let deltaT2K: number | null = null; let lmtdK: number | null = null; let lmtdReason: string | null = null;
   if ([hotIn, hotOut, coldIn, coldOut].every((value) => value !== undefined && Number.isFinite(value))) {
-    deltaT1K = input.pattern === "counter" ? hotIn! - coldOut! : hotIn! - coldIn!;
-    deltaT2K = input.pattern === "counter" ? hotOut! - coldIn! : hotOut! - coldOut!;
-    if (deltaT1K <= 0 || deltaT2K <= 0) lmtdReason = "两端温差存在零值、负值或温度交叉，不能计算 LMTD。";
-    else if (Math.abs(deltaT1K - deltaT2K) < 1e-12) lmtdK = deltaT1K;
-    else lmtdK = (deltaT1K - deltaT2K) / Math.log(deltaT1K / deltaT2K);
+    if (hotOut! > hotIn!) lmtdReason = "热侧出口温度高于入口温度，请检查输入。";
+    else if (coldOut! < coldIn!) lmtdReason = "冷侧出口温度低于入口温度，请检查输入。";
+    else {
+      deltaT1K = input.pattern === "counter" ? hotIn! - coldOut! : hotIn! - coldIn!;
+      deltaT2K = input.pattern === "counter" ? hotOut! - coldIn! : hotOut! - coldOut!;
+      if (deltaT1K <= 0 || deltaT2K <= 0) lmtdReason = "两端温差存在零值、负值或温度交叉，不能计算 LMTD。";
+      else if (Math.abs(deltaT1K - deltaT2K) < 1e-12) lmtdK = deltaT1K;
+      else lmtdK = (deltaT1K - deltaT2K) / Math.log(deltaT1K / deltaT2K);
+    }
   } else lmtdReason = "需要两侧进出口温度才能计算 LMTD。";
   const effectiveMeanDeltaTK = lmtdK === null ? null : input.correctionFactor * lmtdK;
   const uaKwPerK = effectiveMeanDeltaTK !== null && effectiveMeanDeltaTK > 0 && heatLoadBasisKw > 0 ? heatLoadBasisKw / effectiveMeanDeltaTK : null;

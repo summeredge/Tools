@@ -8,9 +8,9 @@ export const DEFAULT_HEAT_EXCHANGER_FORM: HeatExchangerFormState = { mode: "sens
 export function convertHeatLoadDisplayValue(valueKw: number, unit: HeatLoadDisplayUnit): number { return unit === "MW" ? valueKw / 1000 : valueKw; }
 
 export const HEAT_EXCHANGER_GUIDANCE: ProcessGuidance = {
-  assumptions: ["按稳态热平衡计算，显热模式使用 m × Cp × ΔT，焓差模式使用 m × Δh。", "默认忽略环境热损失；两侧热负荷均有效时取绝对值平均作为 UA 基准。", "LMTD 按逆流或并流两端温差计算，并乘以修正系数 F。"],
-  applicability: ["适用于热侧和冷侧热负荷、LMTD 及 UA 的初步估算。", "两端温差均为正且不存在温度交叉时计算 LMTD。"],
-  limitations: ["不计算相平衡、冷凝膜系数、污垢热阻或换热器结构设计。", "热量不平衡超过 5% 时仍显示结果，但需要检查输入数据。"],
+  assumptions: ["按稳态热平衡计算，显热模式使用 m × Cp × ΔT，焓差模式使用 m × Δh。", "默认忽略环境热损失；两侧热负荷均有效时取绝对值平均作为 UA 基准。", "LMTD 按逆流或并流两端温差计算，并乘以修正系数 F；两端温差相等时直接采用该温差。", "热负荷与 UA 共用同一单位口径（kW 或 MW 同步切换）。"],
+  applicability: ["适用于热侧和冷侧热负荷、LMTD 及 UA 的初步估算。", "两端温差均为正、热侧降温、冷侧升温且不存在温度交叉时计算 LMTD。"],
+  limitations: ["不计算相平衡、冷凝膜系数、污垢热阻、换热面积或结构选型。", "热量不平衡超过 5% 时仍显示结果，但需要检查输入数据。", "热侧出口高于入口或冷侧出口低于入口时不计算 LMTD 与 UA。"],
 };
 
 function options(values: Array<[string, string]>, selected: string): string { return values.map(([value, label]) => `<option value="${value}" ${value === selected ? "selected" : ""}>${label}</option>`).join(""); }
