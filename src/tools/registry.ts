@@ -1,10 +1,11 @@
+import { controlValveModule } from "./control-valve-sizing";
 import { gasFlowModule } from "./gas-flow";
 import { heatExchangerModule } from "./heat-exchanger";
 import { pipePressureModule } from "./pipe-pressure-drop";
 import { tankVolumeModule } from "./tank-volume";
 import type { ToolRuntime, ToolStorage } from "./runtime";
 
-export type ProcessToolId = "gas-flow" | "pipe-pressure-drop" | "tank-volume" | "heat-exchanger";
+export type ProcessToolId = "gas-flow" | "pipe-pressure-drop" | "tank-volume" | "heat-exchanger" | "control-valve-sizing";
 
 export type ProcessToolMetadata = {
   id: ProcessToolId;
@@ -25,4 +26,5 @@ export const processToolModules: ProcessToolModule[] = [
   pipePressureModule,
   tankVolumeModule,
   heatExchangerModule,
+  controlValveModule,
 ];

@@ -20,8 +20,8 @@ import type { ToolRuntime, ToolStorage } from "../src/tools/runtime";
 const storage: ToolStorage = { read<T>(_key: string, fallback: T): T { return fallback; }, write<T>(_key: string, _value: T): boolean { return true; } };
 
 describe("过程工程统一模块接口", () => {
-  it("四个工具均通过 metadata、render、bind 接入注册表", () => {
-    expect(processToolModules.map((module) => module.id)).toEqual(["gas-flow", "pipe-pressure-drop", "tank-volume", "heat-exchanger"]);
+  it("过程工具均通过 metadata、render、bind 接入注册表", () => {
+    expect(processToolModules.map((module) => module.id)).toEqual(["gas-flow", "pipe-pressure-drop", "tank-volume", "heat-exchanger", "control-valve-sizing"]);
     const ids = processToolModules.map((module) => module.id);
     expect(new Set(ids).size).toBe(ids.length);
     processToolModules.forEach((module) => { expect(module.name).toBeTruthy(); expect(module.description).toBeTruthy(); expect(module.category).toBeTruthy(); expect(module.mark).toBeTruthy(); expect(module.keywords.length).toBeGreaterThan(0); expect(typeof module.render).toBe("function"); expect(typeof module.bind).toBe("function"); });
@@ -31,8 +31,8 @@ describe("过程工程统一模块接口", () => {
     const mainSource = readFileSync(resolve(process.cwd(), "src/main.ts"), "utf8");
     expect(mainSource).toContain("processToolModules.find");
     expect(mainSource).toContain("...processToolModules");
-    ["气体工况/标况换算", "管道流速与压降", "储罐液位—体积换算", "换热器热量平衡与 LMTD"].forEach((name) => expect(mainSource).not.toContain(`name: "${name}"`));
-    ["gas-flow", "pipe-pressure-drop", "tank-volume", "heat-exchanger"].forEach((id) => expect(mainSource).not.toContain(`id === "${id}"`));
+    ["气体工况/标况换算", "管道流速与压降", "储罐液位—体积换算", "换热器热量平衡与 LMTD", "控制阀 Cv/Kv 初步选型"].forEach((name) => expect(mainSource).not.toContain(`name: "${name}"`));
+    ["gas-flow", "pipe-pressure-drop", "tank-volume", "heat-exchanger", "control-valve-sizing"].forEach((id) => expect(mainSource).not.toContain(`id === "${id}"`));
   });
 
   it("专业分类与旧功能索引保持可筛选、可搜索的元数据", () => {
@@ -41,6 +41,7 @@ describe("过程工程统一模块接口", () => {
     expect(categories.get("pipe-pressure-drop")).toBe("流体与管道");
     expect(categories.get("heat-exchanger")).toBe("换热与能源");
     expect(categories.get("tank-volume")).toBe("储罐与设备");
+    expect(categories.get("control-valve-sizing")).toBe("流体与管道");
     processToolModules.forEach((module) => expect(module.keywords.length).toBeGreaterThan(0));
     const mainSource = readFileSync(resolve(process.cwd(), "src/main.ts"), "utf8");
     expect(mainSource).toContain("favoriteIds.has(tool.id)");
