@@ -258,6 +258,8 @@ input:focus, textarea:focus, select:focus, button:focus-visible { border-color: 
 .pe-result-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
 .pe-result-heading h2 { margin: 0 0 5px; font-size: 22px; }
 .pe-result-heading p:not(.eyebrow) { margin: 0; color: var(--muted); font-size: 12px; }
+.pe-result-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pe-result-actions label { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; }
 .pe-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 18px 0; }
 .pe-metrics > div { min-width: 0; padding: 15px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); }
 .pe-metrics small, .pe-metrics strong { display: block; }

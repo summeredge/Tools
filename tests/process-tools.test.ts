@@ -4,8 +4,8 @@ import { convertGasFlowDisplayValue, convertGasPressureDisplayValue, convertGasT
 import { calculateGasFlow } from "../src/tools/gas-flow/logic";
 import { renderGasFlowResult } from "../src/tools/gas-flow/view";
 import { calculateHeatExchanger } from "../src/tools/heat-exchanger/logic";
-import { renderHeatExchangerResult } from "../src/tools/heat-exchanger/view";
-import { convertPipeFlowBasisDisplayValue } from "../src/tools/pipe-pressure-drop/bind";
+import { convertHeatLoadDisplayValue, renderHeatExchangerResult } from "../src/tools/heat-exchanger/view";
+import { convertPipeFlowBasisDisplayValue, convertPipeFlowDisplayValue } from "../src/tools/pipe-pressure-drop/bind";
 import { calculatePipePressure } from "../src/tools/pipe-pressure-drop/logic";
 import { renderPipePressureResult } from "../src/tools/pipe-pressure-drop/view";
 import { processToolModules } from "../src/tools/registry";
@@ -18,12 +18,16 @@ const storage: ToolStorage = { read<T>(_key: string, fallback: T): T { return fa
 describe("过程工程统一模块接口", () => {
   it("四个工具均通过 metadata、render、bind 接入注册表", () => {
     expect(processToolModules.map((module) => module.id)).toEqual(["gas-flow", "pipe-pressure-drop", "tank-volume", "heat-exchanger"]);
-    processToolModules.forEach((module) => { expect(module.name).toBeTruthy(); expect(typeof module.render).toBe("function"); expect(typeof module.bind).toBe("function"); });
+    const ids = processToolModules.map((module) => module.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    processToolModules.forEach((module) => { expect(module.name).toBeTruthy(); expect(module.description).toBeTruthy(); expect(module.category).toBeTruthy(); expect(module.mark).toBeTruthy(); expect(module.keywords.length).toBeGreaterThan(0); expect(typeof module.render).toBe("function"); expect(typeof module.bind).toBe("function"); });
   });
 
   it("主入口通过注册表分发，未保留四个工具的独立分支", () => {
     const mainSource = readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
     expect(mainSource).toContain("processToolModules.find");
+    expect(mainSource).toContain("...processToolModules");
+    ["气体工况/标况换算", "管道流速与压降", "储罐液位—体积换算", "换热器热量平衡与 LMTD"].forEach((name) => expect(mainSource).not.toContain(`name: "${name}"`));
     ["gas-flow", "pipe-pressure-drop", "tank-volume", "heat-exchanger"].forEach((id) => expect(mainSource).not.toContain(`id === "${id}"`));
   });
 
@@ -47,6 +51,7 @@ describe("工程单位和提示", () => {
     expect(convertGasTemperatureDisplayValue(100, "C", "K")).toBeCloseTo(373.15, 8);
     expect(convertGasPressureDisplayValue(200, "kPa", "bar")).toBeCloseTo(2, 8);
     expect(convertPipeFlowBasisDisplayValue(0.0282743, 1000, "volume", "mass")).toBeCloseTo(28.2743, 7);
+    expect(convertPipeFlowDisplayValue(1000, 1000, "m3/h", "L/min")).toBeCloseTo(16666.6666667, 6);
     expect(convertTankDisplayValue({ geometry: "vertical-cylinder", diameterM: 2, heightOrLengthM: 5, mode: "level", value: 2 }, "volume")).toBeCloseTo(6.283185307, 7);
     expect(convertTankDisplayValue({ geometry: "vertical-cylinder", diameterM: 2, heightOrLengthM: 5, mode: "level", value: 2 }, "fill")).toBeCloseTo(40, 8);
   });
@@ -65,5 +70,23 @@ describe("工程单位和提示", () => {
     ].join("\n");
     ["计算假设", "适用范围", "主要限制", "工程复核提示", "正式设计、选型或安全判断"].forEach((text) => expect(html).toContain(text));
     ["m³/h", "kPa", "kg/m³", "mPa·s", "m³", "kg/h", "kJ/(kg·K)", "kW/K"].forEach((unit) => expect(html).toContain(unit));
+  });
+
+  it("气体、管道和换热器的单位切换保持同一内部计算结果", () => {
+    const gasBase = { flowBasis: "actual" as const, actualTemperatureK: 373.15, actualPressurePa: 200000, standardTemperatureK: 273.15, standardPressurePa: 101325, zActual: 1, zStandard: 1, moistureConversion: "none" as const };
+    const gasM3h = calculateGasFlow({ flowM3s: 1000 / 3600, ...gasBase });
+    const gasLMin = calculateGasFlow({ flowM3s: convertGasFlowDisplayValue(1000, "m3/h", "L/min") * 1e-3 / 60, ...gasBase });
+    expect(gasLMin.standardFlowM3s).toBeCloseTo(gasM3h.standardFlowM3s, 10);
+
+    const pipeBase = { diameterM: 0.01, lengthM: 10, densityKgM3: 1000, viscosityPas: 0.001, roughnessM: 0.0000015, sumK: 2 };
+    const pipeM3h = calculatePipePressure({ flowM3s: 1000 / 3600, ...pipeBase });
+    const pipeLMin = calculatePipePressure({ flowM3s: convertPipeFlowDisplayValue(1000, 1000, "m3/h", "L/min") * 1e-3 / 60, ...pipeBase });
+    expect(pipeLMin.totalDropPa).toBeCloseTo(pipeM3h.totalDropPa, 10);
+
+    const heat = calculateHeatExchanger({ mode: "sensible", pattern: "counter", correctionFactor: 1, hot: { massFlowKgs: 1000 / 3600, cpJPerKgK: 4200, inletTemperatureK: 373.15, outletTemperatureK: 353.15 }, cold: { massFlowKgs: 800 / 3600, cpJPerKgK: 4200, inletTemperatureK: 293.15, outletTemperatureK: 318.15 } });
+    const heatKw = convertHeatLoadDisplayValue(heat.hotLoadKw!, "kW");
+    const heatMw = convertHeatLoadDisplayValue(heat.hotLoadKw!, "MW");
+    expect(heatMw * 1000).toBeCloseTo(heatKw, 10);
+    expect(renderHeatExchangerResult(heat, "MW")).toContain("MW");
   });
 });

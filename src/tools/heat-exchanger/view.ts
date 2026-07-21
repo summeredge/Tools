@@ -2,7 +2,10 @@ import { escapeHtml, formatToolNumber, formatToolPercent, renderProcessGuidance,
 import type { HeatExchangerMode, HeatExchangerPattern, HeatExchangerResult } from "./logic";
 
 export type HeatExchangerFormState = { mode: HeatExchangerMode; pattern: HeatExchangerPattern; correctionFactor: number; hotFlowKgH: number; hotCpKjKgK: number; hotInC: number; hotOutC: number; coldFlowKgH: number; coldCpKjKgK: number; coldInC: number; coldOutC: number; hotHinKjKg: number; hotHoutKjKg: number; coldHinKjKg: number; coldHoutKjKg: number };
+export type HeatLoadDisplayUnit = "kW" | "MW";
 export const DEFAULT_HEAT_EXCHANGER_FORM: HeatExchangerFormState = { mode: "sensible", pattern: "counter", correctionFactor: 1, hotFlowKgH: 1000, hotCpKjKgK: 4.2, hotInC: 100, hotOutC: 80, coldFlowKgH: 800, coldCpKjKgK: 4.2, coldInC: 20, coldOutC: 45, hotHinKjKg: 0, hotHoutKjKg: 0, coldHinKjKg: 0, coldHoutKjKg: 0 };
+
+export function convertHeatLoadDisplayValue(valueKw: number, unit: HeatLoadDisplayUnit): number { return unit === "MW" ? valueKw / 1000 : valueKw; }
 
 export const HEAT_EXCHANGER_GUIDANCE: ProcessGuidance = {
   assumptions: ["按稳态热平衡计算，显热模式使用 m × Cp × ΔT，焓差模式使用 m × Δh。", "默认忽略环境热损失；两侧热负荷均有效时取绝对值平均作为 UA 基准。", "LMTD 按逆流或并流两端温差计算，并乘以修正系数 F。"],
@@ -21,11 +24,12 @@ export function renderHeatExchanger(storage: ToolStorage): string {
   return `${renderHeatExchangerForm(storage)}${renderProcessGuidance(HEAT_EXCHANGER_GUIDANCE)}`;
 }
 
-function renderHeatExchangerResultBase(result: HeatExchangerResult): string {
+function renderHeatExchangerResultBase(result: HeatExchangerResult, heatLoadUnit: HeatLoadDisplayUnit): string {
   const warnings = result.warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join("");
-  return `<div class="pe-result-heading"><div><p class="eyebrow">ENERGY BALANCE / LMTD</p><h2>换热器热量平衡结果</h2></div><button class="button secondary" data-copy-result>复制结果</button></div><div class="pe-metrics"><div><small>热侧热负荷</small><strong>${result.hotLoadKw === null ? "未完成" : `${formatToolNumber(result.hotLoadKw)} kW`}</strong></div><div><small>冷侧热负荷</small><strong>${result.coldLoadKw === null ? "未完成" : `${formatToolNumber(result.coldLoadKw)} kW`}</strong></div><div><small>热量不平衡</small><strong>${formatToolPercent(result.heatImbalancePercent)}</strong></div><div><small>UA</small><strong>${result.uaKwPerK === null ? "—" : `${formatToolNumber(result.uaKwPerK)} kW/K`}</strong></div></div><div class="pe-result-grid"><section><h3>温差与 LMTD</h3><p>两端温差：${formatToolNumber(result.deltaT1K)} K / ${formatToolNumber(result.deltaT2K)} K</p><p>LMTD：${formatToolNumber(result.lmtdK)} K</p><p>修正后有效平均温差：${formatToolNumber(result.effectiveMeanDeltaTK)} K</p>${result.lmtdReason ? `<p class="pe-error-text">${escapeHtml(result.lmtdReason)}</p>` : ""}</section><section><h3>UA 计算依据</h3><p>热负荷基准：${formatToolNumber(result.heatLoadBasisKw)} kW</p><p>规则：两侧都有效时取两侧绝对热负荷平均值；仅一侧完整时使用该侧。</p><p>UA = Q基准 / (F × LMTD)</p></section></div>${warnings ? `<div class="pe-notes warning"><strong>提示</strong><ul>${warnings}</ul></div>` : ""}</div>`;
+  const displayLoad = (valueKw: number | null): string => valueKw === null ? "未完成" : `${formatToolNumber(convertHeatLoadDisplayValue(valueKw, heatLoadUnit))} ${heatLoadUnit}`;
+  return `<div class="pe-result-heading"><div><p class="eyebrow">ENERGY BALANCE / LMTD</p><h2>换热器热量平衡结果</h2></div><div class="pe-result-actions"><label>热负荷单位<select id="hx-load-unit"><option value="kW" ${heatLoadUnit === "kW" ? "selected" : ""}>kW</option><option value="MW" ${heatLoadUnit === "MW" ? "selected" : ""}>MW</option></select></label><button class="button secondary" data-copy-result>复制结果</button></div></div><div class="pe-metrics"><div><small>热侧热负荷</small><strong>${displayLoad(result.hotLoadKw)}</strong></div><div><small>冷侧热负荷</small><strong>${displayLoad(result.coldLoadKw)}</strong></div><div><small>热量不平衡</small><strong>${formatToolPercent(result.heatImbalancePercent)}</strong></div><div><small>UA</small><strong>${result.uaKwPerK === null ? "—" : `${formatToolNumber(result.uaKwPerK)} kW/K`}</strong></div></div><div class="pe-result-grid"><section><h3>温差与 LMTD</h3><p>两端温差：${formatToolNumber(result.deltaT1K)} K / ${formatToolNumber(result.deltaT2K)} K</p><p>LMTD：${formatToolNumber(result.lmtdK)} K</p><p>修正后有效平均温差：${formatToolNumber(result.effectiveMeanDeltaTK)} K</p>${result.lmtdReason ? `<p class="pe-error-text">${escapeHtml(result.lmtdReason)}</p>` : ""}</section><section><h3>UA 计算依据</h3><p>热负荷基准：${displayLoad(result.heatLoadBasisKw)}</p><p>规则：两侧都有效时取两侧绝对热负荷平均值；仅一侧完整时使用该侧。</p><p>UA = Q基准 / (F × LMTD)</p></section></div>${warnings ? `<div class="pe-notes warning"><strong>提示</strong><ul>${warnings}</ul></div>` : ""}</div>`;
 }
 
-export function renderHeatExchangerResult(result: HeatExchangerResult): string {
-  return `${renderHeatExchangerResultBase(result)}<div class="pe-notes"><strong>适用范围</strong><p>仅处理显热或焓差热负荷、逆流或并流 LMTD 与 UA；不计算相平衡、冷凝膜系数、污垢热阻或换热器结构设计。</p></div>`;
+export function renderHeatExchangerResult(result: HeatExchangerResult, heatLoadUnit: HeatLoadDisplayUnit = "kW"): string {
+  return `${renderHeatExchangerResultBase(result, heatLoadUnit)}<div class="pe-notes"><strong>适用范围</strong><p>仅处理显热或焓差热负荷、逆流或并流 LMTD 与 UA；不计算相平衡、冷凝膜系数、污垢热阻或换热器结构设计。</p></div>`;
 }

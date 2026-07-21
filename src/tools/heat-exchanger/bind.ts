@@ -1,5 +1,6 @@
 import { calculateHeatExchanger, HeatExchangerError, type HeatExchangerInput, type HeatSideInput } from "./logic";
-import { DEFAULT_HEAT_EXCHANGER_FORM, renderHeatExchangerResult, type HeatExchangerFormState } from "./view";
+import { DEFAULT_HEAT_EXCHANGER_FORM, renderHeatExchangerResult, type HeatExchangerFormState, type HeatLoadDisplayUnit } from "./view";
+import type { HeatExchangerResult } from "./logic";
 import type { ToolRuntime } from "../runtime";
 
 function numberValue(id: string): number { return Number.parseFloat(document.querySelector<HTMLInputElement>(`#${id}`)?.value ?? ""); }
@@ -25,10 +26,14 @@ function toggleMode(): void { const mode = stringValue("hx-mode"); document.quer
 export function bindHeatExchanger(runtime: ToolRuntime): void {
   const form = document.querySelector<HTMLElement>(".heat-exchanger-tool"); const output = document.querySelector<HTMLElement>("#hx-output"); const status = document.querySelector<HTMLElement>("#hx-feedback");
   if (!form || !output || !status) return;
-  const calculate = (showError = true): void => { try { const result = calculateHeatExchanger(collectInput()); runtime.storage.write("workbench:heat-exchanger", formState()); output.innerHTML = renderHeatExchangerResult(result); output.querySelector("[data-copy-result]")?.addEventListener("click", () => void runtime.copyText(output.innerText, status)); runtime.feedback(status, "计算完成", "ok"); } catch (error) { if (showError) runtime.feedback(status, error instanceof HeatExchangerError ? error.message : "输入无法计算，请检查数值。", "error"); } };
+  let lastResult: HeatExchangerResult | null = null;
+  let heatLoadUnit: HeatLoadDisplayUnit = "kW";
+  const bindResultActions = (): void => { if (!lastResult) return; output.innerHTML = renderHeatExchangerResult(lastResult, heatLoadUnit); output.querySelector("[data-copy-result]")?.addEventListener("click", () => void runtime.copyText(output.innerText, status)); };
+  const calculate = (showError = true): void => { try { lastResult = calculateHeatExchanger(collectInput()); heatLoadUnit = "kW"; runtime.storage.write("workbench:heat-exchanger", formState()); bindResultActions(); runtime.feedback(status, "计算完成", "ok"); } catch (error) { if (showError) runtime.feedback(status, error instanceof HeatExchangerError ? error.message : "输入无法计算，请检查数值。", "error"); } };
+  output.addEventListener("change", (event) => { if ((event.target as HTMLSelectElement).id !== "hx-load-unit") return; heatLoadUnit = (event.target as HTMLSelectElement).value as HeatLoadDisplayUnit; bindResultActions(); });
   form.querySelector("#hx-mode")?.addEventListener("change", () => { toggleMode(); calculate(false); });
   form.querySelector("#hx-calculate")?.addEventListener("click", () => calculate());
-  form.querySelector("#hx-reset")?.addEventListener("click", () => { const mapping: Record<keyof HeatExchangerFormState, string> = { mode: "hx-mode", pattern: "hx-pattern", correctionFactor: "hx-factor", hotFlowKgH: "hx-hot-flow", hotCpKjKgK: "hx-hot-cp", hotInC: "hx-hot-in", hotOutC: "hx-hot-out", coldFlowKgH: "hx-cold-flow", coldCpKjKgK: "hx-cold-cp", coldInC: "hx-cold-in", coldOutC: "hx-cold-out", hotHinKjKg: "hx-hot-hin", hotHoutKjKg: "hx-hot-hout", coldHinKjKg: "hx-cold-hin", coldHoutKjKg: "hx-cold-hout" }; Object.entries(DEFAULT_HEAT_EXCHANGER_FORM).forEach(([key, value]) => { const element = document.querySelector<HTMLInputElement | HTMLSelectElement>(`#${mapping[key as keyof HeatExchangerFormState]}`); if (element) element.value = String(value); }); runtime.storage.write("workbench:heat-exchanger", DEFAULT_HEAT_EXCHANGER_FORM); output.innerHTML = `<div class="pe-empty">计算结果将显示在这里。</div>`; toggleMode(); runtime.feedback(status, "已恢复默认值", "ok"); });
+  form.querySelector("#hx-reset")?.addEventListener("click", () => { const mapping: Record<keyof HeatExchangerFormState, string> = { mode: "hx-mode", pattern: "hx-pattern", correctionFactor: "hx-factor", hotFlowKgH: "hx-hot-flow", hotCpKjKgK: "hx-hot-cp", hotInC: "hx-hot-in", hotOutC: "hx-hot-out", coldFlowKgH: "hx-cold-flow", coldCpKjKgK: "hx-cold-cp", coldInC: "hx-cold-in", coldOutC: "hx-cold-out", hotHinKjKg: "hx-hot-hin", hotHoutKjKg: "hx-hot-hout", coldHinKjKg: "hx-cold-hin", coldHoutKjKg: "hx-cold-hout" }; Object.entries(DEFAULT_HEAT_EXCHANGER_FORM).forEach(([key, value]) => { const element = document.querySelector<HTMLInputElement | HTMLSelectElement>(`#${mapping[key as keyof HeatExchangerFormState]}`); if (element) element.value = String(value); }); runtime.storage.write("workbench:heat-exchanger", DEFAULT_HEAT_EXCHANGER_FORM); lastResult = null; heatLoadUnit = "kW"; output.innerHTML = `<div class="pe-empty">计算结果将显示在这里。</div>`; toggleMode(); runtime.feedback(status, "已恢复默认值", "ok"); });
   form.querySelectorAll<HTMLInputElement | HTMLSelectElement>("input, select").forEach((element) => { element.addEventListener("input", () => calculate(false)); element.addEventListener("change", () => calculate(false)); });
   toggleMode();
 }
