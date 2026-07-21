@@ -1,17 +1,21 @@
+/** @vitest-environment jsdom */
+
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { convertGasFlowDisplayValue, convertGasPressureDisplayValue, convertGasTemperatureDisplayValue } from "../src/tools/gas-flow/bind";
 import { calculateGasFlow } from "../src/tools/gas-flow/logic";
 import { renderGasFlowResult } from "../src/tools/gas-flow/view";
 import { calculateHeatExchanger } from "../src/tools/heat-exchanger/logic";
-import { convertHeatLoadDisplayValue, renderHeatExchangerResult } from "../src/tools/heat-exchanger/view";
+import { bindHeatExchanger } from "../src/tools/heat-exchanger/bind";
+import { convertHeatLoadDisplayValue, renderHeatExchanger, renderHeatExchangerResult } from "../src/tools/heat-exchanger/view";
 import { convertPipeFlowBasisDisplayValue, convertPipeFlowDisplayValue } from "../src/tools/pipe-pressure-drop/bind";
 import { calculatePipePressure } from "../src/tools/pipe-pressure-drop/logic";
 import { renderPipePressureResult } from "../src/tools/pipe-pressure-drop/view";
 import { processToolModules } from "../src/tools/registry";
 import { calculateTank, convertTankDisplayValue, generateTankTable } from "../src/tools/tank-volume/logic";
 import { renderTankResult } from "../src/tools/tank-volume/view";
-import type { ToolStorage } from "../src/tools/runtime";
+import type { ToolRuntime, ToolStorage } from "../src/tools/runtime";
 
 const storage: ToolStorage = { read<T>(_key: string, fallback: T): T { return fallback; }, write<T>(_key: string, _value: T): boolean { return true; } };
 
@@ -24,7 +28,7 @@ describe("过程工程统一模块接口", () => {
   });
 
   it("主入口通过注册表分发，未保留四个工具的独立分支", () => {
-    const mainSource = readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
+    const mainSource = readFileSync(resolve(process.cwd(), "src/main.ts"), "utf8");
     expect(mainSource).toContain("processToolModules.find");
     expect(mainSource).toContain("...processToolModules");
     ["气体工况/标况换算", "管道流速与压降", "储罐液位—体积换算", "换热器热量平衡与 LMTD"].forEach((name) => expect(mainSource).not.toContain(`name: "${name}"`));
@@ -38,7 +42,7 @@ describe("过程工程统一模块接口", () => {
     expect(categories.get("heat-exchanger")).toBe("换热与能源");
     expect(categories.get("tank-volume")).toBe("储罐与设备");
     processToolModules.forEach((module) => expect(module.keywords.length).toBeGreaterThan(0));
-    const mainSource = readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
+    const mainSource = readFileSync(resolve(process.cwd(), "src/main.ts"), "utf8");
     expect(mainSource).toContain("favoriteIds.has(tool.id)");
     expect(mainSource).toContain("recentIds.includes(tool.id)");
     expect(mainSource).toContain("haystack.includes(query)");
@@ -88,5 +92,40 @@ describe("工程单位和提示", () => {
     const heatMw = convertHeatLoadDisplayValue(heat.hotLoadKw!, "MW");
     expect(heatMw * 1000).toBeCloseTo(heatKw, 10);
     expect(renderHeatExchangerResult(heat, "MW")).toContain("MW");
+  });
+
+  it("换热器真实事件链保持 MW，并同步显示 MW/K 与复制结果", async () => {
+    document.body.innerHTML = renderHeatExchanger(storage);
+    const copiedResults: string[] = [];
+    const runtime: ToolRuntime = {
+      storage,
+      feedback: () => undefined,
+      copyText: async (value) => { copiedResults.push(value); },
+      downloadText: () => undefined,
+    };
+    const output = document.querySelector<HTMLElement>("#hx-output")!;
+    Object.defineProperty(output, "innerText", { configurable: true, get: () => output.textContent ?? "" });
+    bindHeatExchanger(runtime);
+
+    document.querySelector<HTMLButtonElement>("#hx-calculate")!.click();
+    const unit = document.querySelector<HTMLSelectElement>("#hx-load-unit")!;
+    unit.value = "MW";
+    unit.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(document.querySelector<HTMLSelectElement>("#hx-load-unit")?.value).toBe("MW");
+    expect(output.textContent).toContain("MW/K");
+    expect(output.textContent).not.toContain("kW/K");
+
+    const hotOutlet = document.querySelector<HTMLInputElement>("#hx-hot-out")!;
+    hotOutlet.value = "79";
+    hotOutlet.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(document.querySelector<HTMLSelectElement>("#hx-load-unit")?.value).toBe("MW");
+    expect(output.textContent).toContain("MW/K");
+    expect(output.textContent).not.toContain("kW/K");
+
+    document.querySelector<HTMLButtonElement>("[data-copy-result]")!.click();
+    await Promise.resolve();
+    expect(copiedResults[0]).toContain("MW");
+    expect(copiedResults[0]).toContain("MW/K");
+    expect(copiedResults[0]).not.toContain("kW/K");
   });
 });

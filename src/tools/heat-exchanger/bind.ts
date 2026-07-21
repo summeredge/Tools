@@ -29,7 +29,7 @@ export function bindHeatExchanger(runtime: ToolRuntime): void {
   let lastResult: HeatExchangerResult | null = null;
   let heatLoadUnit: HeatLoadDisplayUnit = "kW";
   const bindResultActions = (): void => { if (!lastResult) return; output.innerHTML = renderHeatExchangerResult(lastResult, heatLoadUnit); output.querySelector("[data-copy-result]")?.addEventListener("click", () => void runtime.copyText(output.innerText, status)); };
-  const calculate = (showError = true): void => { try { lastResult = calculateHeatExchanger(collectInput()); heatLoadUnit = "kW"; runtime.storage.write("workbench:heat-exchanger", formState()); bindResultActions(); runtime.feedback(status, "计算完成", "ok"); } catch (error) { if (showError) runtime.feedback(status, error instanceof HeatExchangerError ? error.message : "输入无法计算，请检查数值。", "error"); } };
+  const calculate = (showError = true): void => { try { lastResult = calculateHeatExchanger(collectInput()); runtime.storage.write("workbench:heat-exchanger", formState()); bindResultActions(); runtime.feedback(status, "计算完成", "ok"); } catch (error) { if (showError) runtime.feedback(status, error instanceof HeatExchangerError ? error.message : "输入无法计算，请检查数值。", "error"); } };
   output.addEventListener("change", (event) => { if ((event.target as HTMLSelectElement).id !== "hx-load-unit") return; heatLoadUnit = (event.target as HTMLSelectElement).value as HeatLoadDisplayUnit; bindResultActions(); });
   form.querySelector("#hx-mode")?.addEventListener("change", () => { toggleMode(); calculate(false); });
   form.querySelector("#hx-calculate")?.addEventListener("click", () => calculate());
