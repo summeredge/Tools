@@ -40,7 +40,7 @@ const state: { query: string; category: string; homeMode: HomeMode; theme: Theme
 };
 
 function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (character) => ({ "&": "&", "<": "<", ">": ">", '"': """, "'": "&#39;" })[character] ?? character);
+  return value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character] ?? character);
 }
 
 function getTool(id: ToolId): Tool { return tools.find((tool) => tool.id === id) ?? tools[0]!; }
@@ -165,7 +165,7 @@ function renderToolContent(id: ToolId): string {
         <span class="md-sep"></span>
         <button type="button" class="md-btn" data-md-cmd="quote" title="引用">“”</button>
         <button type="button" class="md-btn" data-md-cmd="code" title="行内代码"><></button>
-        <button type="button" class="md-btn" data-md-cmd="codeblock" title="代码块">```</button>
+        <button type="button" class="md-btn" data-md-cmd="codeblock" title="代码块">\`\`\`</button>
         <span class="md-sep"></span>
         <button type="button" class="md-btn" data-md-cmd="link" title="链接">🔗</button>
         <button type="button" class="md-btn" data-md-cmd="image" title="图片">🖼</button>
