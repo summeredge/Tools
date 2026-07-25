@@ -1,5 +1,7 @@
+import DOMPurify from "dompurify";
 import "./styles.css";
 import { diffLines } from "diff";
+import { renderMarkdown } from "./markdown";
 import {
   createStorageAdapter,
   sortLines,
@@ -8,7 +10,7 @@ import {
 } from "./logic";
 import { fetchSafety, SafetyError, type SafetyResult } from "./safety";
 
-type ToolId = "safety" | "text" | "diff";
+type ToolId = "safety" | "markdown" | "text" | "diff";
 type HomeMode = "all" | "favorites" | "recent";
 type Theme = "system" | "light" | "dark";
 
@@ -16,6 +18,7 @@ type Tool = { id: ToolId; name: string; description: string; category: string; m
 
 const tools: Tool[] = [
   { id: "safety", name: "化学品安全信息", description: "查询 PubChem 安全摘要与官方数据库链接", category: "外部数据", mark: "SDS", keywords: ["化学品", "SDS", "MSDS", "CAS", "安全", "GHS"] },
+  { id: "markdown", name: "Markdown", description: "左侧编辑，右侧实时预览，草稿自动保存在本机", category: "文档", mark: "MD", keywords: ["文档", "预览", "表格", "代码", "markdown"] },
   { id: "text", name: "文本处理", description: "统计、清理、排序、去重与大小写转换", category: "文本", mark: "Aa", keywords: ["字符", "行", "空白", "排序"] },
   { id: "diff", name: "文本对比", description: "逐行查看新增、删除与未变化内容", category: "文本", mark: "Δ", keywords: ["差异", "比较", "新增", "删除"] },
 ];
@@ -76,6 +79,14 @@ async function copyText(value: string, target: HTMLElement | null): Promise<void
   }
 }
 
+function downloadText(filename: string, content: string, mimeType: string): void {
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob([content], { type: mimeType }));
+  link.download = filename;
+  link.click();
+  window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}
+
 function renderHeader(): string {
   const themeLabel = state.theme === "system" ? "跟随系统" : state.theme === "light" ? "浅色" : "深色";
   return `<header class="topbar">
@@ -93,7 +104,7 @@ function renderSidebar(active: ToolId | "home"): string {
     <button class="side-link ${isHome && state.homeMode === "recent" ? "active" : ""}" data-nav="recent"><span>◷</span>最近使用 <em>${recentIds.length}</em></button>
     <div class="sidebar-label">工具分类</div>
     <div class="side-categories">${categories.filter((category) => category !== "全部").map((category) => `<button class="side-link compact ${isHome && state.category === category ? "active" : ""}" data-category="${escapeHtml(category)}"><span>·</span>${escapeHtml(category)}</button>`).join("")}</div>
-    <div class="sidebar-note"><span class="note-dot"></span><div><strong>本地优先</strong><p>文本处理与对比全程在浏览器内完成；化学品安全查询会向公开数据服务发送搜索内容。</p></div></div>
+    <div class="sidebar-note"><span class="note-dot"></span><div><strong>本地优先</strong><p>文本与 Markdown 全程在浏览器内完成；化学品安全查询会向公开数据服务发送搜索内容。</p></div></div>
   </aside>`;
 }
 
@@ -119,8 +130,8 @@ function renderToolCards(): string {
 function renderHome(): string {
   const modeLabel = state.homeMode === "favorites" ? "我的收藏" : state.homeMode === "recent" ? "最近使用" : "全部工具";
   return `<section class="home-view">
-    <div class="hero"><div><p class="eyebrow">DAILY WORKBENCH / 01</p><h1>把每天会用到的<br><span>小工具放在一起。</span></h1><p class="hero-copy">一个面向小团队的通用工具箱。无需登录，文本处理默认在当前浏览器完成。</p></div></div>
-    <div class="privacy-banner"><span class="privacy-icon">⌁</span><div><strong>隐私边界清晰</strong><p>文本工具输入默认仅在当前浏览器处理；化学品安全查询会向对应公开数据服务发送搜索内容。本站不含账号、同步、埋点或公司内部资料。</p></div></div>
+    <div class="hero"><div><p class="eyebrow">DAILY WORKBENCH / 01</p><h1>把每天会用到的<br><span>小工具放在一起。</span></h1><p class="hero-copy">一个面向小团队的通用工具箱。无需登录，文本与 Markdown 默认在当前浏览器完成。</p></div></div>
+    <div class="privacy-banner"><span class="privacy-icon">⌁</span><div><strong>隐私边界清晰</strong><p>文本与 Markdown 输入默认仅在当前浏览器处理；化学品安全查询会向对应公开数据服务发送搜索内容。本站不含账号、同步、埋点或公司内部资料。</p></div></div>
     <div class="home-toolbar"><label class="search-box"><span>⌕</span><input id="tool-search" type="search" value="${escapeHtml(state.query)}" placeholder="搜索工具名称或关键词…" autocomplete="off"><kbd>/</kbd></label><div class="category-chips" aria-label="工具分类">${categories.map((category) => `<button class="chip ${state.category === category ? "active" : ""}" data-category="${escapeHtml(category)}">${escapeHtml(category)}</button>`).join("")}</div></div>
     <div class="section-heading"><div><p class="eyebrow">TOOL INDEX</p><h2>${modeLabel}</h2></div><span class="result-count">${filteredTools().length} / ${tools.length}</span></div>
     <div class="tool-grid" id="tool-grid">${renderToolCards()}</div>
@@ -134,6 +145,28 @@ function renderToolShell(tool: Tool): string {
 function renderToolContent(id: ToolId): string {
   switch (id) {
     case "safety": return `<div class="safety-tool"><div class="safety-search"><label for="safety-query">化学品名称或 CAS 号</label><div class="calc-input-row"><input id="safety-query" type="search" value="${escapeHtml(storage.read<string>("workbench:safety-query", ""))}" placeholder="例如：甲醇、ethanol、64-17-5" autocomplete="off"><button class="button primary" id="safety-search-button">查询安全信息</button></div><p class="hint">支持中文名称、英文名称和 CAS 号。中文名称会先通过 <a href="https://www.wikidata.org/" target="_blank" rel="noreferrer">Wikidata</a> 做名称映射，再从 <a href="https://pubchem.ncbi.nlm.nih.gov/" target="_blank" rel="noreferrer">PubChem</a> 获取安全摘要；结果不替代具体产品的最新版供应商 SDS。</p></div><div id="safety-status" class="feedback" aria-live="polite">请输入化学品名称或 CAS 号。</div><div id="safety-result"></div></div>`;
+    case "markdown": return `<div class="markdown-tool">
+      <div class="markdown-actions">
+        <span class="hint">左侧编辑，右侧实时预览。草稿仅自动保存到当前浏览器。</span>
+        <div>
+          <button class="button secondary" id="markdown-copy">复制 Markdown</button>
+          <button class="button secondary" id="markdown-copy-html">复制渲染结果</button>
+          <button class="button primary" id="markdown-download">下载 .md</button>
+        </div>
+      </div>
+      <div class="markdown-tabs">
+        <button class="active" data-md-tab="edit">编辑</button>
+        <button data-md-tab="preview">预览</button>
+      </div>
+      <div class="markdown-grid">
+        <label class="markdown-editor" data-md-pane="edit">
+          <span class="sr-only">Markdown 编辑器</span>
+          <textarea id="markdown-input" spellcheck="false" placeholder="# 标题\n\n在这里输入 Markdown…\n\n- 列表\n- **粗体** 与 *斜体*\n\n\`行内代码\`"></textarea>
+        </label>
+        <article class="markdown-preview" data-md-pane="preview" id="markdown-preview" aria-label="Markdown 预览"></article>
+      </div>
+      <div class="feedback" id="markdown-feedback" aria-live="polite"></div>
+    </div>`;
     case "text": return `<div class="text-tool"><div class="text-actions"><div class="stats" id="text-stats">字符 0 · 字数 0 · 行数 0</div><div class="button-group"><button class="button secondary" data-text-action="upper">大写</button><button class="button secondary" data-text-action="lower">小写</button><button class="button secondary" data-text-action="trim">去首尾空白</button><button class="button secondary" data-text-action="collapse">去多余空白</button><button class="button secondary" data-text-action="sort">行排序</button><button class="button secondary" data-text-action="unique">行去重</button><button class="button primary" data-text-copy>复制</button><button class="button danger" data-text-clear>清空</button></div></div><textarea id="text-input" class="large-textarea" placeholder="在这里输入或粘贴文本…"></textarea><div class="feedback" id="text-feedback" aria-live="polite"></div></div>`;
     case "diff": return `<div class="diff-tool"><div class="split-actions"><span class="hint">长文本会先显示处理状态，比较全程在浏览器内完成。</span><div><button class="button primary" id="diff-run">开始比较</button><button class="button secondary" id="diff-clear">清空</button></div></div><div class="diff-input-grid"><label><span>原文本</span><textarea id="diff-left" spellcheck="false" placeholder="原始内容…"></textarea></label><label><span>新文本</span><textarea id="diff-right" spellcheck="false" placeholder="修改后的内容…"></textarea></label></div><div id="diff-status" class="feedback" aria-live="polite"></div><div id="diff-output" class="diff-output"></div></div>`;
   }
@@ -163,6 +196,42 @@ function bindSafety(): void {
   button?.addEventListener("click", () => void search()); input?.addEventListener("keydown", (event) => { if (event.key === "Enter") void search(); });
 }
 
+function bindMarkdown(): void {
+  const input = document.querySelector<HTMLTextAreaElement>("#markdown-input");
+  const preview = document.querySelector<HTMLElement>("#markdown-preview");
+  const status = document.querySelector<HTMLElement>("#markdown-feedback");
+  if (!input || !preview) return;
+
+  input.value = storage.read<string>("workbench:markdown-draft", "");
+
+  const update = () => {
+    storage.write("workbench:markdown-draft", input.value);
+    preview.innerHTML = renderMarkdown(input.value, (html) =>
+      DOMPurify.sanitize(html, { USE_PROFILES: { html: true } })
+    );
+  };
+
+  input.addEventListener("input", update);
+  update();
+
+  document.querySelector("#markdown-copy")?.addEventListener("click", () => copyText(input.value, status));
+  document.querySelector("#markdown-copy-html")?.addEventListener("click", () => copyText(preview.innerHTML, status));
+  document.querySelector("#markdown-download")?.addEventListener("click", () => {
+    downloadText("workbench-note.md", input.value, "text/markdown;charset=utf-8");
+    feedback(status, "已开始下载 Markdown 文件", "ok");
+  });
+
+  document.querySelectorAll<HTMLButtonElement>("[data-md-tab]").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      const pane = tab.dataset.mdTab;
+      document.querySelectorAll("[data-md-tab]").forEach((item) => item.classList.toggle("active", item === tab));
+      document.querySelectorAll<HTMLElement>("[data-md-pane]").forEach((item) => {
+        item.classList.toggle("mobile-visible", item.dataset.mdPane === pane);
+      });
+    });
+  });
+}
+
 function bindText(): void {
   const input = document.querySelector<HTMLTextAreaElement>("#text-input"); const stats = document.querySelector<HTMLElement>("#text-stats"); const status = document.querySelector<HTMLElement>("#text-feedback"); if (!input || !stats) return;
   const update = () => { const value = textStats(input.value); stats.textContent = `字符 ${value.characters} · 字数 ${value.words} · 行数 ${value.lines}`; };
@@ -179,6 +248,7 @@ function bindDiff(): void {
 
 function bindTool(id: ToolId): void {
   if (id === "safety") bindSafety();
+  if (id === "markdown") bindMarkdown();
   if (id === "text") bindText();
   if (id === "diff") bindDiff();
 }

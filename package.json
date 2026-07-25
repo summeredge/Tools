@@ -10,7 +10,9 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "diff": "8.0.2"
+    "diff": "8.0.2",
+    "dompurify": "3.2.6",
+    "marked": "15.0.12"
   },
   "devDependencies": {
     "@types/jsdom": "21.1.7",
