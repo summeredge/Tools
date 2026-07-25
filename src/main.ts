@@ -40,7 +40,7 @@ const state: { query: string; category: string; homeMode: HomeMode; theme: Theme
 };
 
 function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character] ?? character);
+  return value.replace(/[&<>"']/g, (character) => ({ "&": "&", "<": "<", ">": ">", '"': """, "'": "&#39;" })[character] ?? character);
 }
 
 function getTool(id: ToolId): Tool { return tools.find((tool) => tool.id === id) ?? tools[0]!; }
@@ -154,6 +154,28 @@ function renderToolContent(id: ToolId): string {
           <button class="button primary" id="markdown-download">下载 .md</button>
         </div>
       </div>
+      <div class="md-toolbar" role="toolbar" aria-label="Markdown 格式工具">
+        <button type="button" class="md-btn" data-md-cmd="bold" title="加粗"><strong>B</strong></button>
+        <button type="button" class="md-btn" data-md-cmd="italic" title="斜体"><em>I</em></button>
+        <button type="button" class="md-btn" data-md-cmd="strike" title="删除线"><s>S</s></button>
+        <span class="md-sep"></span>
+        <button type="button" class="md-btn" data-md-cmd="h1" title="一级标题">H1</button>
+        <button type="button" class="md-btn" data-md-cmd="h2" title="二级标题">H2</button>
+        <button type="button" class="md-btn" data-md-cmd="h3" title="三级标题">H3</button>
+        <span class="md-sep"></span>
+        <button type="button" class="md-btn" data-md-cmd="quote" title="引用">“”</button>
+        <button type="button" class="md-btn" data-md-cmd="code" title="行内代码"><></button>
+        <button type="button" class="md-btn" data-md-cmd="codeblock" title="代码块">```</button>
+        <span class="md-sep"></span>
+        <button type="button" class="md-btn" data-md-cmd="link" title="链接">🔗</button>
+        <button type="button" class="md-btn" data-md-cmd="image" title="图片">🖼</button>
+        <button type="button" class="md-btn" data-md-cmd="table" title="表格">表</button>
+        <span class="md-sep"></span>
+        <button type="button" class="md-btn" data-md-cmd="ul" title="无序列表">• 列表</button>
+        <button type="button" class="md-btn" data-md-cmd="ol" title="有序列表">1. 列表</button>
+        <button type="button" class="md-btn" data-md-cmd="task" title="任务列表">☑</button>
+        <button type="button" class="md-btn" data-md-cmd="hr" title="分隔线">—</button>
+      </div>
       <div class="markdown-tabs">
         <button class="active" data-md-tab="edit">编辑</button>
         <button data-md-tab="preview">预览</button>
@@ -196,6 +218,25 @@ function bindSafety(): void {
   button?.addEventListener("click", () => void search()); input?.addEventListener("keydown", (event) => { if (event.key === "Enter") void search(); });
 }
 
+function insertMarkdown(textarea: HTMLTextAreaElement, before: string, after = "", placeholder = ""): void {
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const selected = textarea.value.slice(start, end);
+  const text = selected || placeholder;
+  const insertion = before + text + after;
+  textarea.setRangeText(insertion, start, end, "end");
+  if (!selected && placeholder) {
+    const selStart = start + before.length;
+    textarea.setSelectionRange(selStart, selStart + placeholder.length);
+  } else {
+    const selStart = start + before.length;
+    const selEnd = selStart + text.length;
+    textarea.setSelectionRange(selStart, selEnd);
+  }
+  textarea.focus();
+  textarea.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
 function bindMarkdown(): void {
   const input = document.querySelector<HTMLTextAreaElement>("#markdown-input");
   const preview = document.querySelector<HTMLElement>("#markdown-preview");
@@ -213,6 +254,30 @@ function bindMarkdown(): void {
 
   input.addEventListener("input", update);
   update();
+
+  document.querySelectorAll<HTMLButtonElement>("[data-md-cmd]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const cmd = btn.dataset.mdCmd;
+      switch (cmd) {
+        case "bold": insertMarkdown(input, "**", "**", "粗体文字"); break;
+        case "italic": insertMarkdown(input, "*", "*", "斜体文字"); break;
+        case "strike": insertMarkdown(input, "~~", "~~", "删除线文字"); break;
+        case "h1": insertMarkdown(input, "# ", "", "一级标题"); break;
+        case "h2": insertMarkdown(input, "## ", "", "二级标题"); break;
+        case "h3": insertMarkdown(input, "### ", "", "三级标题"); break;
+        case "quote": insertMarkdown(input, "> ", "", "引用内容"); break;
+        case "code": insertMarkdown(input, "`", "`", "code"); break;
+        case "codeblock": insertMarkdown(input, "```\n", "\n```", "code"); break;
+        case "link": insertMarkdown(input, "[", "](https://)", "链接文字"); break;
+        case "image": insertMarkdown(input, "![", "](https://)", "图片描述"); break;
+        case "table": insertMarkdown(input, "| 列1 | 列2 | 列3 |\n| --- | --- | --- |\n| 内容 | 内容 | 内容 |\n", ""); break;
+        case "ul": insertMarkdown(input, "- ", "", "列表项"); break;
+        case "ol": insertMarkdown(input, "1. ", "", "列表项"); break;
+        case "task": insertMarkdown(input, "- [ ] ", "", "待办事项"); break;
+        case "hr": insertMarkdown(input, "\n---\n", ""); break;
+      }
+    });
+  });
 
   document.querySelector("#markdown-copy")?.addEventListener("click", () => copyText(input.value, status));
   document.querySelector("#markdown-copy-html")?.addEventListener("click", () => copyText(preview.innerHTML, status));
