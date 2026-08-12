@@ -198,7 +198,7 @@ input:focus, textarea:focus, select:focus, button:focus-visible { border-color: 
 .markdown-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
 .markdown-editor textarea, .markdown-preview { height: 520px; min-height: 300px; overflow: auto; }
 .markdown-editor textarea { width: 100%; display: block; font-family: "SFMono-Regular", Consolas, monospace; font-size: 12px; }
-.markdown-preview { padding: 18px; border: 1px solid var(--line); border-radius: 7px; font-size: 13px; line-height: 1.7; }
+.markdown-preview { padding: 18px; border: 1px solid var(--line); border-radius: 7px; font-size: 13px; line-height: 1.7; font-synthesis: style weight; }
 .markdown-preview h1, .markdown-preview h2, .markdown-preview h3 { letter-spacing: normal; margin: 0 0 10px; }
 .markdown-preview h1 { font-size: 25px; }
 .markdown-preview h2 { font-size: 20px; }
