@@ -81,17 +81,10 @@ a { color: var(--accent); }
 
 main { min-width: 0; padding: 48px clamp(22px, 5vw, 72px) 70px; }
 .home-view, .tool-view { max-width: 1120px; margin: 0 auto; }
-.hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 30px; padding: 16px 0 34px; }
 .eyebrow { color: var(--accent); font-size: 10px; font-weight: 800; letter-spacing: .16em; margin: 0 0 12px; }
 h1, h2, h3, p { margin-top: 0; }
 h1 { font-size: clamp(32px, 5vw, 58px); line-height: 1.04; letter-spacing: -.045em; margin-bottom: 18px; }
-h1 span { color: var(--accent); }
-.hero-copy { max-width: 540px; color: var(--muted); line-height: 1.75; font-size: 14px; margin: 0; }
-.privacy-banner { padding: 14px 17px; border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--line)); background: var(--accent-soft); border-radius: 10px; display: flex; gap: 12px; align-items: flex-start; margin-bottom: 34px; }
-.privacy-icon { color: var(--accent); font-size: 21px; line-height: 1; }
-.privacy-banner strong { font-size: 12px; }
-.privacy-banner p { color: var(--muted); font-size: 11px; line-height: 1.6; margin: 3px 0 0; }
-.home-toolbar { padding: 14px 0 0; display: flex; gap: 18px; justify-content: space-between; flex-wrap: wrap; }
+.home-toolbar { padding: 0; display: flex; gap: 18px; justify-content: space-between; flex-wrap: wrap; }
 .search-box { min-width: min(100%, 350px); height: 44px; border: 1px solid var(--line-strong); background: var(--surface); border-radius: 9px; display: flex; align-items: center; gap: 9px; padding: 0 12px; transition: border .18s ease, box-shadow .18s ease; }
 .search-box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .search-box > span { color: var(--muted-soft); font-size: 20px; }
@@ -100,7 +93,7 @@ kbd { padding: 2px 5px; border: 1px solid var(--line-strong); border-radius: 4px
 .category-chips { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
 .chip, .markdown-tabs button { border: 1px solid transparent; border-radius: 99px; padding: 8px 12px; color: var(--muted); background: transparent; font-size: 11px; }
 .chip:hover, .chip.active, .markdown-tabs button.active { color: var(--accent); background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 20%, transparent); }
-.section-heading { display: flex; align-items: flex-end; justify-content: space-between; margin: 48px 0 18px; }
+.section-heading { display: flex; align-items: flex-end; justify-content: space-between; margin: 36px 0 18px; }
 .section-heading h2 { font-size: 19px; letter-spacing: -.02em; margin: 0; }
 .result-count { color: var(--muted-soft); font-size: 11px; }
 .tool-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 13px; }
@@ -125,6 +118,32 @@ kbd { padding: 2px 5px; border: 1px solid var(--line-strong); border-radius: 4px
 .empty-mark { display: block; color: var(--accent); font-size: 36px; margin-bottom: 10px; }
 .empty-state strong { display: block; color: var(--text); font-size: 14px; }
 .empty-state p { font-size: 12px; margin: 8px 0 16px; }
+
+.shortcuts-section { margin-top: 56px; padding-top: 25px; border-top: 1px solid var(--line); }
+.shortcuts-heading { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 18px; }
+.shortcuts-heading h2 { margin: 0; font-size: 19px; letter-spacing: -.02em; }
+.shortcut-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 12px; }
+.shortcut-item { min-width: 0; padding: 0 10px; color: var(--text); display: flex; flex-direction: column; align-items: center; gap: 9px; text-align: center; }
+.shortcut-icon { position: relative; width: 54px; height: 54px; display: grid; place-items: center; overflow: hidden; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 21px; font-weight: 800; text-decoration: none; transition: transform .18s ease, box-shadow .18s ease; }
+.shortcut-icon:hover, .shortcut-icon:focus-visible { transform: translateY(-3px); box-shadow: 0 0 0 4px var(--accent-soft), var(--shadow); outline: 0; }
+.shortcut-icon img { position: absolute; inset: 9px; width: 36px; height: 36px; padding: 4px; border-radius: 10px; background: var(--surface); object-fit: contain; }
+.shortcut-copy { min-width: 0; max-width: 100%; }
+.shortcut-copy strong, .shortcut-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shortcut-copy strong { font-size: 12px; }
+.shortcut-copy small { margin-top: 4px; color: var(--muted-soft); font-size: 10px; }
+.shortcut-empty { margin: 0; color: var(--muted-soft); font-size: 11px; }
+.shortcut-add-button { width: 62px; height: 62px; min-height: 62px; margin-top: 14px; padding: 0; border: 1px dashed var(--line-strong); border-radius: 50%; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center; font-size: 12px; transition: border .18s ease, color .18s ease, background .18s ease; }
+.shortcut-add-button:hover, .shortcut-add-button:focus-visible { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); outline: 0; }
+.shortcut-add-button > span { display: grid; place-items: center; font-size: 28px; line-height: 1; }
+.shortcut-dialog-backdrop { position: fixed; inset: 0; z-index: 30; padding: 20px; background: rgba(22, 34, 51, .34); display: grid; place-items: center; backdrop-filter: blur(4px); }
+.shortcut-dialog-card { width: min(100%, 440px); padding: 24px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: 0 24px 70px rgba(22, 34, 51, .2); }
+.shortcut-dialog-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.shortcut-dialog-heading h3 { margin: 0; font-size: 20px; }
+.shortcut-dialog-close { width: 30px; height: 30px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font-size: 22px; line-height: 1; }
+.shortcut-dialog-close:hover { background: var(--surface-soft); color: var(--text); }
+.shortcut-dialog-card label { display: flex; flex-direction: column; gap: 7px; margin-top: 13px; color: var(--muted); font-size: 11px; }
+.shortcut-dialog-card input { width: 100%; }
+.shortcut-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 5px; }
 
 .tool-crumb { display: flex; gap: 9px; align-items: center; color: var(--muted-soft); font-size: 11px; margin: 5px 0 32px; }
 .back-button { border: 0; padding: 0; background: transparent; color: var(--muted); font-size: 12px; }
@@ -273,9 +292,7 @@ footer span { color: var(--muted-soft); }
   .side-link span { display: none; }
   .side-link em { margin-left: 3px; }
   main { padding: 26px 15px 50px; }
-  .hero { display: block; padding: 12px 0 25px; }
   h1 { font-size: 37px; }
-  .privacy-banner { margin-bottom: 22px; }
   .home-toolbar { display: block; }
   .search-box { min-width: 100%; }
   .category-chips { margin-top: 12px; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 3px; }
@@ -304,5 +321,8 @@ footer span { color: var(--muted-soft); }
   .markdown-grid .markdown-editor:not(.mobile-visible) { display: block; }
   .diff-input-grid { grid-template-columns: 1fr; }
   .diff-input-grid textarea { height: 260px; }
+  .shortcuts-section { margin-top: 38px; padding-top: 20px; }
+  .shortcut-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .shortcut-dialog-card { padding: 18px; }
   footer { padding: 0 16px; }
 }

@@ -1,6 +1,25 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { createStorageAdapter } from "../src/logic";
+import { createStorageAdapter, normalizeShortcutUrl, removeExtraLineBreaks } from "../src/logic";
 import { fetchSafety } from "../src/safety";
+
+describe("网址快捷键", () => {
+  it("补全网址协议并拒绝不安全协议", () => {
+    expect(normalizeShortcutUrl("example.com/docs")).toBe("https://example.com/docs");
+    expect(normalizeShortcutUrl("https://example.com")).toBe("https://example.com/");
+    expect(normalizeShortcutUrl("javascript:alert(1)")).toBeNull();
+    expect(normalizeShortcutUrl("  ")).toBeNull();
+  });
+});
+
+describe("文本处理", () => {
+  it("去除连续回车并统一换行符", () => {
+    expect(removeExtraLineBreaks("第一行\r\n\r\n\r\n第二行\n\n第三行")).toBe("第一行\n第二行\n第三行");
+  });
+
+  it("保留单个换行并清理空白行", () => {
+    expect(removeExtraLineBreaks("第一行\n第二行\n \n\t\n第三行")).toBe("第一行\n第二行\n第三行");
+  });
+});
 
 describe("存储降级", () => {
   it("浏览器存储不可用时工具仍可读写失败而不抛错", () => {

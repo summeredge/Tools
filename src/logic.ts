@@ -12,6 +12,22 @@ export function sortLines(value: string): string { return value.split(/\r?\n/).s
 
 export function uniqueLines(value: string): string { return [...new Set(value.split(/\r?\n/))].join("\n"); }
 
+export function removeExtraLineBreaks(value: string): string {
+  return value.replace(/\r\n?/gu, "\n").replace(/[ \t]*\n(?:[ \t]*\n)+/gu, "\n");
+}
+
+export function normalizeShortcutUrl(value: string): string | null {
+  const raw = value.trim();
+  if (!raw) return null;
+  const candidate = /^[a-z][a-z\d+.-]*:/iu.test(raw) ? raw : `https://${raw}`;
+  try {
+    const url = new URL(candidate);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
 export type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
 export function createStorageAdapter(storage: StorageLike | null): {

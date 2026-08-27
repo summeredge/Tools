@@ -4,6 +4,8 @@ import { diffLines } from "diff";
 import { renderMarkdown } from "./markdown";
 import {
   createStorageAdapter,
+  normalizeShortcutUrl,
+  removeExtraLineBreaks,
   sortLines,
   textStats,
   uniqueLines,
@@ -15,11 +17,12 @@ type HomeMode = "all" | "favorites" | "recent";
 type Theme = "system" | "light" | "dark";
 
 type Tool = { id: ToolId; name: string; description: string; category: string; mark: string; keywords: string[] };
+type Shortcut = { id: string; name: string; url: string };
 
 const tools: Tool[] = [
   { id: "safety", name: "化学品安全信息", description: "查询 PubChem 安全摘要与官方数据库链接", category: "外部数据", mark: "SDS", keywords: ["化学品", "SDS", "MSDS", "CAS", "安全", "GHS"] },
   { id: "markdown", name: "Markdown", description: "左侧编辑，右侧实时预览，草稿自动保存在本机", category: "文档", mark: "MD", keywords: ["文档", "预览", "表格", "代码", "markdown"] },
-  { id: "text", name: "文本处理", description: "统计、清理、排序、去重与大小写转换", category: "文本", mark: "Aa", keywords: ["字符", "行", "空白", "排序"] },
+  { id: "text", name: "文本处理", description: "统计、清理、去多余回车、排序与去重", category: "文本", mark: "Aa", keywords: ["字符", "行", "回车", "空白", "排序"] },
   { id: "diff", name: "文本对比", description: "逐行查看新增、删除与未变化内容", category: "文本", mark: "Δ", keywords: ["差异", "比较", "新增", "删除"] },
 ];
 
@@ -44,6 +47,30 @@ function escapeHtml(value: string): string {
 }
 
 function getTool(id: ToolId): Tool { return tools.find((tool) => tool.id === id) ?? tools[0]!; }
+
+function readShortcuts(): Shortcut[] {
+  const stored = storage.read<unknown>("workbench:shortcuts", []);
+  if (!Array.isArray(stored)) return [];
+  return stored.flatMap((value) => {
+    if (!value || typeof value !== "object") return [];
+    const item = value as Record<string, unknown>;
+    if (typeof item.url !== "string") return [];
+    const url = normalizeShortcutUrl(item.url);
+    if (!url) return [];
+    const hostname = new URL(url).hostname.replace(/^www\./u, "");
+    return [{
+      id: typeof item.id === "string" && item.id ? item.id : url,
+      name: typeof item.name === "string" && item.name.trim() ? item.name.trim() : hostname,
+      url,
+    }];
+  });
+}
+
+const shortcuts = readShortcuts();
+
+function saveShortcuts(): void { storage.write("workbench:shortcuts", shortcuts); }
+
+function createShortcutId(): string { return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`; }
 
 function setTheme(theme: Theme): void {
   state.theme = theme;
@@ -127,14 +154,42 @@ function renderToolCards(): string {
   </article>`).join("");
 }
 
+function renderShortcuts(): string {
+  const cards = shortcuts.map((shortcut) => {
+    const url = new URL(shortcut.url);
+    const hostname = url.hostname.replace(/^www\./u, "");
+    const initial = [...shortcut.name.trim()][0] ?? [...hostname][0] ?? "↗";
+    return `<div class="shortcut-item">
+      <a class="shortcut-icon" data-shortcut-id="${escapeHtml(shortcut.id)}" href="${escapeHtml(shortcut.url)}" target="_blank" rel="noreferrer" title="左键打开，右键删除：${escapeHtml(shortcut.name)}" aria-label="打开${escapeHtml(shortcut.name)}，右键删除"><span>${escapeHtml(initial)}</span><img data-shortcut-favicon src="${escapeHtml(`${url.origin}/favicon.ico`)}" alt="" loading="lazy"></a>
+      <span class="shortcut-copy"><strong>${escapeHtml(shortcut.name)}</strong><small>${escapeHtml(hostname)}</small></span>
+    </div>`;
+  }).join("");
+  return `<section class="shortcuts-section" aria-labelledby="shortcuts-title">
+    <div class="shortcuts-heading"><div><p class="eyebrow">QUICK LINKS</p><h2 id="shortcuts-title">网址快捷键</h2></div><span class="result-count">${shortcuts.length} 个</span></div>
+    ${cards ? `<div class="shortcut-grid">${cards}</div>` : `<p class="shortcut-empty">把常用网址放在这里，点击图标即可快速打开。</p>`}
+    <button class="shortcut-add-button" type="button" data-add-shortcut aria-haspopup="dialog" aria-label="添加网址快捷键" title="添加网址快捷键"><span aria-hidden="true">＋</span></button>
+    <div class="shortcut-dialog-backdrop hidden" data-shortcut-dialog role="dialog" aria-modal="true" aria-labelledby="shortcut-dialog-title" aria-hidden="true">
+      <div class="shortcut-dialog-card">
+        <div class="shortcut-dialog-heading"><div><p class="eyebrow">QUICK LINK</p><h3 id="shortcut-dialog-title">添加网址快捷键</h3></div><button class="shortcut-dialog-close" type="button" data-shortcut-close aria-label="关闭">×</button></div>
+        <form data-shortcut-form>
+          <label for="shortcut-name">名称（可选）<input id="shortcut-name" type="text" maxlength="30" placeholder="例如：公司文档" autocomplete="off"></label>
+          <label for="shortcut-url">网址<input id="shortcut-url" type="text" inputmode="url" placeholder="https://example.com" autocomplete="url" required></label>
+          <p class="hint">不填写名称时，将自动使用网站域名。</p>
+          <div class="feedback" data-shortcut-feedback aria-live="polite"></div>
+          <div class="shortcut-dialog-actions"><button class="button secondary" type="button" data-shortcut-close>取消</button><button class="button primary" type="submit">添加快捷键</button></div>
+        </form>
+      </div>
+    </div>
+  </section>`;
+}
+
 function renderHome(): string {
   const modeLabel = state.homeMode === "favorites" ? "我的收藏" : state.homeMode === "recent" ? "最近使用" : "全部工具";
   return `<section class="home-view">
-    <div class="hero"><div><p class="eyebrow">DAILY WORKBENCH / 01</p><h1>把每天会用到的<br><span>小工具放在一起。</span></h1><p class="hero-copy">一个面向小团队的通用工具箱。无需登录，文本与 Markdown 默认在当前浏览器完成。</p></div></div>
-    <div class="privacy-banner"><span class="privacy-icon">⌁</span><div><strong>隐私边界清晰</strong><p>文本与 Markdown 输入默认仅在当前浏览器处理；化学品安全查询会向对应公开数据服务发送搜索内容。本站不含账号、同步、埋点或公司内部资料。</p></div></div>
     <div class="home-toolbar"><label class="search-box"><span>⌕</span><input id="tool-search" type="search" value="${escapeHtml(state.query)}" placeholder="搜索工具名称或关键词…" autocomplete="off"><kbd>/</kbd></label><div class="category-chips" aria-label="工具分类">${categories.map((category) => `<button class="chip ${state.category === category ? "active" : ""}" data-category="${escapeHtml(category)}">${escapeHtml(category)}</button>`).join("")}</div></div>
     <div class="section-heading"><div><p class="eyebrow">TOOL INDEX</p><h2>${modeLabel}</h2></div><span class="result-count">${filteredTools().length} / ${tools.length}</span></div>
     <div class="tool-grid" id="tool-grid">${renderToolCards()}</div>
+    ${renderShortcuts()}
   </section>`;
 }
 
@@ -189,7 +244,7 @@ function renderToolContent(id: ToolId): string {
       </div>
       <div class="feedback" id="markdown-feedback" aria-live="polite"></div>
     </div>`;
-    case "text": return `<div class="text-tool"><div class="text-actions"><div class="stats" id="text-stats">字符 0 · 字数 0 · 行数 0</div><div class="button-group"><button class="button secondary" data-text-action="upper">大写</button><button class="button secondary" data-text-action="lower">小写</button><button class="button secondary" data-text-action="trim">去首尾空白</button><button class="button secondary" data-text-action="collapse">去多余空白</button><button class="button secondary" data-text-action="sort">行排序</button><button class="button secondary" data-text-action="unique">行去重</button><button class="button primary" data-text-copy>复制</button><button class="button danger" data-text-clear>清空</button></div></div><textarea id="text-input" class="large-textarea" placeholder="在这里输入或粘贴文本…"></textarea><div class="feedback" id="text-feedback" aria-live="polite"></div></div>`;
+    case "text": return `<div class="text-tool"><div class="text-actions"><div class="stats" id="text-stats">字符 0 · 字数 0 · 行数 0</div><div class="button-group"><button class="button secondary" data-text-action="trim">去首尾空白</button><button class="button secondary" data-text-action="collapse">去多余空白</button><button class="button secondary" data-text-action="remove-extra-line-breaks">去多余回车</button><button class="button secondary" data-text-action="sort">行排序</button><button class="button secondary" data-text-action="unique">行去重</button><button class="button primary" data-text-copy>复制</button><button class="button danger" data-text-clear>清空</button></div></div><textarea id="text-input" class="large-textarea" placeholder="在这里输入或粘贴文本…"></textarea><div class="feedback" id="text-feedback" aria-live="polite"></div></div>`;
     case "diff": return `<div class="diff-tool"><div class="split-actions"><span class="hint">长文本会先显示处理状态，比较全程在浏览器内完成。</span><div><button class="button primary" id="diff-run">开始比较</button><button class="button secondary" id="diff-clear">清空</button></div></div><div class="diff-input-grid"><label><span>原文本</span><textarea id="diff-left" spellcheck="false" placeholder="原始内容…"></textarea></label><label><span>新文本</span><textarea id="diff-right" spellcheck="false" placeholder="修改后的内容…"></textarea></label></div><div id="diff-status" class="feedback" aria-live="polite"></div><div id="diff-output" class="diff-output"></div></div>`;
   }
 }
@@ -301,7 +356,7 @@ function bindText(): void {
   const input = document.querySelector<HTMLTextAreaElement>("#text-input"); const stats = document.querySelector<HTMLElement>("#text-stats"); const status = document.querySelector<HTMLElement>("#text-feedback"); if (!input || !stats) return;
   const update = () => { const value = textStats(input.value); stats.textContent = `字符 ${value.characters} · 字数 ${value.words} · 行数 ${value.lines}`; };
   input.addEventListener("input", update); update();
-  document.querySelectorAll<HTMLButtonElement>("[data-text-action]").forEach((button) => button.addEventListener("click", () => { const action = button.dataset.textAction; if (action === "upper") input.value = input.value.toLocaleUpperCase(); if (action === "lower") input.value = input.value.toLocaleLowerCase(); if (action === "trim") input.value = input.value.trim(); if (action === "collapse") input.value = input.value.replace(/\s+/gu, " ").trim(); if (action === "sort") input.value = sortLines(input.value); if (action === "unique") input.value = uniqueLines(input.value); update(); }));
+  document.querySelectorAll<HTMLButtonElement>("[data-text-action]").forEach((button) => button.addEventListener("click", () => { const action = button.dataset.textAction; if (action === "trim") input.value = input.value.trim(); if (action === "collapse") input.value = input.value.replace(/\s+/gu, " ").trim(); if (action === "remove-extra-line-breaks") input.value = removeExtraLineBreaks(input.value); if (action === "sort") input.value = sortLines(input.value); if (action === "unique") input.value = uniqueLines(input.value); update(); }));
   document.querySelector("[data-text-copy]")?.addEventListener("click", () => copyText(input.value, status)); document.querySelector("[data-text-clear]")?.addEventListener("click", () => { input.value = ""; update(); feedback(status, "已清空", "ok"); });
 }
 
@@ -331,12 +386,55 @@ function renderApp(): void {
   document.querySelector("[data-clear-filters]")?.addEventListener("click", () => { state.query = ""; state.category = "全部"; state.homeMode = "all"; renderApp(); });
   const search = document.querySelector<HTMLInputElement>("#tool-search"); search?.addEventListener("input", () => { state.query = search.value; const grid = document.querySelector<HTMLElement>("#tool-grid"); const count = document.querySelector<HTMLElement>(".result-count"); if (grid) grid.innerHTML = renderToolCards(); if (count) count.textContent = `${filteredTools().length} / ${tools.length}`; bindHomeCards(); }); search?.addEventListener("keydown", (event) => { if (event.key === "/") event.preventDefault(); });
   bindHomeCards();
+  bindShortcuts();
   if (active !== "home") bindTool(active);
 }
 
 function bindHomeCards(): void {
   document.querySelectorAll<HTMLElement>("[data-open-tool]").forEach((element) => { const open = () => { const id = element.dataset.openTool as ToolId; recordRecent(id); window.location.hash = id; renderApp(); }; element.onclick = open; element.onkeydown = (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } }; });
   document.querySelectorAll<HTMLElement>("[data-favorite]").forEach((element) => { element.onclick = (event) => { event.stopPropagation(); const id = element.dataset.favorite as ToolId; if (favoriteIds.has(id)) favoriteIds.delete(id); else favoriteIds.add(id); saveFavorites(); renderApp(); }; });
+}
+
+function bindShortcuts(): void {
+  const dialog = document.querySelector<HTMLElement>("[data-shortcut-dialog]");
+  const form = document.querySelector<HTMLFormElement>("[data-shortcut-form]");
+  const nameInput = document.querySelector<HTMLInputElement>("#shortcut-name");
+  const urlInput = document.querySelector<HTMLInputElement>("#shortcut-url");
+  const status = document.querySelector<HTMLElement>("[data-shortcut-feedback]");
+  if (!dialog || !form || !urlInput) return;
+
+  const setOpen = (open: boolean): void => {
+    dialog.classList.toggle("hidden", !open);
+    dialog.setAttribute("aria-hidden", String(!open));
+    if (open) urlInput.focus();
+    else { form.reset(); feedback(status, ""); }
+  };
+
+  document.querySelector("[data-add-shortcut]")?.addEventListener("click", () => setOpen(true));
+  document.querySelectorAll<HTMLElement>("[data-shortcut-close]").forEach((element) => element.addEventListener("click", () => setOpen(false)));
+  dialog.addEventListener("click", (event) => { if (event.target === dialog) setOpen(false); });
+  dialog.addEventListener("keydown", (event) => { if (event.key === "Escape") setOpen(false); });
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const url = normalizeShortcutUrl(urlInput.value);
+    if (!url) { feedback(status, "请输入有效的网址（支持 http:// 或 https://）。", "error"); urlInput.focus(); return; }
+    const parsed = new URL(url);
+    shortcuts.push({ id: createShortcutId(), name: nameInput?.value.trim() || parsed.hostname.replace(/^www\./u, ""), url });
+    saveShortcuts();
+    renderApp();
+  });
+  document.querySelectorAll<HTMLAnchorElement>("[data-shortcut-id]").forEach((link) => link.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    const id = link.dataset.shortcutId;
+    const shortcut = shortcuts.find((item) => item.id === id);
+    if (!shortcut || !window.confirm(`删除网址快捷键“${shortcut.name}”？`)) return;
+    const index = shortcuts.findIndex((item) => item.id === id);
+    if (index < 0) return;
+    shortcuts.splice(index, 1);
+    saveShortcuts();
+    renderApp();
+  }));
+  document.querySelectorAll<HTMLImageElement>("[data-shortcut-favicon]").forEach((image) => image.addEventListener("error", () => image.remove()));
 }
 
 window.addEventListener("hashchange", renderApp);
