@@ -11,10 +11,9 @@ import {
   uniqueLines,
 } from "./logic";
 import { fetchSafety, SafetyError, type SafetyResult } from "./safety";
+import { bindDashboardWidgets, disposeDashboardWidgets, renderDashboardWidgets } from "./widgets";
 
 type ToolId = "safety" | "markdown" | "text" | "diff";
-type HomeMode = "all" | "favorites" | "recent";
-type Theme = "system" | "light" | "dark";
 
 type Tool = { id: ToolId; name: string; description: string; category: string; mark: string; keywords: string[] };
 type Shortcut = { id: string; name: string; url: string };
@@ -36,10 +35,8 @@ function getStorage(): Storage | null {
 }
 
 const storage = createStorageAdapter(getStorage());
-const favoriteIds = new Set<ToolId>(storage.read<ToolId[]>("workbench:favorites", []));
-const recentIds = storage.read<ToolId[]>("workbench:recent", []).filter((id): id is ToolId => tools.some((tool) => tool.id === id));
-const state: { query: string; category: string; homeMode: HomeMode; theme: Theme } = {
-  query: "", category: "全部", homeMode: "all", theme: storage.read<Theme>("workbench:theme", "system"),
+const state: { query: string; category: string } = {
+  query: "", category: "全部",
 };
 
 function escapeHtml(value: string): string {
@@ -72,23 +69,6 @@ function saveShortcuts(): void { storage.write("workbench:shortcuts", shortcuts)
 
 function createShortcutId(): string { return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`; }
 
-function setTheme(theme: Theme): void {
-  state.theme = theme;
-  if (theme === "system") delete document.documentElement.dataset.theme;
-  else document.documentElement.dataset.theme = theme;
-  storage.write("workbench:theme", theme);
-}
-
-function saveFavorites(): void { storage.write("workbench:favorites", [...favoriteIds]); }
-
-function saveRecent(): void { storage.write("workbench:recent", recentIds); }
-
-function recordRecent(id: ToolId): void {
-  const next = [id, ...recentIds.filter((recentId) => recentId !== id)].slice(0, 8);
-  recentIds.splice(0, recentIds.length, ...next);
-  saveRecent();
-}
-
 function formatLocalDate(date: Date): string { return date.toLocaleString("zh-CN", { dateStyle: "medium", timeStyle: "short" }); }
 
 function feedback(element: HTMLElement | null, message: string, kind: "ok" | "error" | "muted" = "muted"): void {
@@ -115,10 +95,8 @@ function downloadText(filename: string, content: string, mimeType: string): void
 }
 
 function renderHeader(): string {
-  const themeLabel = state.theme === "system" ? "跟随系统" : state.theme === "light" ? "浅色" : "深色";
   return `<header class="topbar">
     <button class="brand" data-nav="home" aria-label="回到工具首页"><span class="brand-mark">▦</span><span><strong>日常工作工具箱</strong><small>清晰、快速、默认留在本机</small></span></button>
-    <div class="topbar-actions"><span class="storage-state ${storage.available ? "" : "warning"}">${storage.available ? "本地偏好已启用" : "本地存储不可用，工具仍可使用"}</span><label class="theme-select"><span class="sr-only">主题</span><select id="theme-select" aria-label="选择主题"><option value="system" ${state.theme === "system" ? "selected" : ""}>跟随系统</option><option value="light" ${state.theme === "light" ? "selected" : ""}>浅色</option><option value="dark" ${state.theme === "dark" ? "selected" : ""}>深色</option></select><span>${themeLabel}</span></label></div>
   </header>`;
 }
 
@@ -126,22 +104,18 @@ function renderSidebar(active: ToolId | "home"): string {
   const isHome = active === "home";
   return `<aside class="sidebar" aria-label="工具导航">
     <div class="sidebar-label">工作区</div>
-    <button class="side-link ${isHome && state.homeMode === "all" ? "active" : ""}" data-nav="home"><span>⌂</span>全部工具 <em>${tools.length}</em></button>
-    <button class="side-link ${isHome && state.homeMode === "favorites" ? "active" : ""}" data-nav="favorites"><span>☆</span>我的收藏 <em>${favoriteIds.size}</em></button>
-    <button class="side-link ${isHome && state.homeMode === "recent" ? "active" : ""}" data-nav="recent"><span>◷</span>最近使用 <em>${recentIds.length}</em></button>
+    <button class="side-link ${isHome ? "active" : ""}" data-nav="home"><span>⌂</span>全部工具 <em>${tools.length}</em></button>
     <div class="sidebar-label">工具分类</div>
     <div class="side-categories">${categories.filter((category) => category !== "全部").map((category) => `<button class="side-link compact ${isHome && state.category === category ? "active" : ""}" data-category="${escapeHtml(category)}"><span>·</span>${escapeHtml(category)}</button>`).join("")}</div>
-    <div class="sidebar-note"><span class="note-dot"></span><div><strong>本地优先</strong><p>文本与 Markdown 全程在浏览器内完成；化学品安全查询会向公开数据服务发送搜索内容。</p></div></div>
   </aside>`;
 }
 
 function filteredTools(): Tool[] {
   const query = state.query.trim().toLowerCase();
   return tools.filter((tool) => {
-    const matchesMode = state.homeMode === "all" || (state.homeMode === "favorites" ? favoriteIds.has(tool.id) : recentIds.includes(tool.id));
     const matchesCategory = state.category === "全部" || tool.category === state.category;
     const haystack = [tool.name, tool.description, tool.category, ...tool.keywords].join(" ").toLowerCase();
-    return matchesMode && matchesCategory && (!query || haystack.includes(query));
+    return matchesCategory && (!query || haystack.includes(query));
   });
 }
 
@@ -149,8 +123,8 @@ function renderToolCards(): string {
   const visible = filteredTools();
   if (visible.length === 0) return `<div class="empty-state"><span class="empty-mark">⌕</span><strong>没有匹配的工具</strong><p>试试其他关键词，或清除当前筛选条件。</p><button class="button secondary" data-clear-filters>清除筛选</button></div>`;
   return visible.map((tool) => `<article class="tool-card" data-open-tool="${tool.id}" tabindex="0" role="button" aria-label="打开${escapeHtml(tool.name)}">
-    <div class="tool-card-top"><span class="tool-mark mark-${tool.id}">${escapeHtml(tool.mark)}</span><button class="favorite-button ${favoriteIds.has(tool.id) ? "saved" : ""}" data-favorite="${tool.id}" aria-label="${favoriteIds.has(tool.id) ? "取消收藏" : "收藏"}${escapeHtml(tool.name)}">${favoriteIds.has(tool.id) ? "★" : "☆"}</button></div>
-    <div><h3>${escapeHtml(tool.name)}</h3><p>${escapeHtml(tool.description)}</p></div><div class="tool-card-footer"><span>${escapeHtml(tool.category)}</span><span class="arrow">↗</span></div>
+    <div class="tool-card-top"><span class="tool-mark mark-${tool.id}">${escapeHtml(tool.mark)}</span></div>
+    <div><h3>${escapeHtml(tool.name)}</h3><p>${escapeHtml(tool.description)}</p></div><div class="tool-card-footer"><span>${escapeHtml(tool.category)}</span></div>
   </article>`).join("");
 }
 
@@ -158,14 +132,14 @@ function renderShortcuts(): string {
   const cards = shortcuts.map((shortcut) => {
     const url = new URL(shortcut.url);
     const hostname = url.hostname.replace(/^www\./u, "");
-    const initial = [...shortcut.name.trim()][0] ?? [...hostname][0] ?? "↗";
+    const initial = [...shortcut.name.trim()][0] ?? [...hostname][0] ?? "•";
     return `<div class="shortcut-item">
       <a class="shortcut-icon" data-shortcut-id="${escapeHtml(shortcut.id)}" href="${escapeHtml(shortcut.url)}" target="_blank" rel="noreferrer" title="左键打开，右键删除：${escapeHtml(shortcut.name)}" aria-label="打开${escapeHtml(shortcut.name)}，右键删除"><span>${escapeHtml(initial)}</span><img data-shortcut-favicon src="${escapeHtml(`${url.origin}/favicon.ico`)}" alt="" loading="lazy"></a>
       <span class="shortcut-copy"><strong>${escapeHtml(shortcut.name)}</strong><small>${escapeHtml(hostname)}</small></span>
     </div>`;
   }).join("");
-  return `<section class="shortcuts-section" aria-labelledby="shortcuts-title">
-    <div class="shortcuts-heading"><div><p class="eyebrow">QUICK LINKS</p><h2 id="shortcuts-title">网址快捷键</h2></div><span class="result-count">${shortcuts.length} 个</span></div>
+  return `<section class="shortcuts-section" aria-label="网址快捷键">
+    <div class="shortcuts-heading"><div><p class="eyebrow">QUICK LINKS</p></div><span class="result-count">${shortcuts.length} 个</span></div>
     ${cards ? `<div class="shortcut-grid">${cards}</div>` : `<p class="shortcut-empty">把常用网址放在这里，点击图标即可快速打开。</p>`}
     <button class="shortcut-add-button" type="button" data-add-shortcut aria-haspopup="dialog" aria-label="添加网址快捷键" title="添加网址快捷键"><span aria-hidden="true">＋</span></button>
     <div class="shortcut-dialog-backdrop hidden" data-shortcut-dialog role="dialog" aria-modal="true" aria-labelledby="shortcut-dialog-title" aria-hidden="true">
@@ -184,17 +158,17 @@ function renderShortcuts(): string {
 }
 
 function renderHome(): string {
-  const modeLabel = state.homeMode === "favorites" ? "我的收藏" : state.homeMode === "recent" ? "最近使用" : "全部工具";
   return `<section class="home-view">
+    ${renderDashboardWidgets()}
     <div class="home-toolbar"><label class="search-box"><span>⌕</span><input id="tool-search" type="search" value="${escapeHtml(state.query)}" placeholder="搜索工具名称或关键词…" autocomplete="off"><kbd>/</kbd></label><div class="category-chips" aria-label="工具分类">${categories.map((category) => `<button class="chip ${state.category === category ? "active" : ""}" data-category="${escapeHtml(category)}">${escapeHtml(category)}</button>`).join("")}</div></div>
-    <div class="section-heading"><div><p class="eyebrow">TOOL INDEX</p><h2>${modeLabel}</h2></div><span class="result-count">${filteredTools().length} / ${tools.length}</span></div>
+    <div class="section-heading"><div><p class="eyebrow">TOOL INDEX</p><h2>全部工具</h2></div><span class="result-count">${filteredTools().length} / ${tools.length}</span></div>
     <div class="tool-grid" id="tool-grid">${renderToolCards()}</div>
     ${renderShortcuts()}
   </section>`;
 }
 
 function renderToolShell(tool: Tool): string {
-  return `<section class="tool-view"><div class="tool-crumb"><button class="back-button" data-nav="home">← 返回工具首页</button><span>/</span><span>${escapeHtml(tool.category)}</span></div><div class="tool-heading"><div class="tool-heading-mark mark-${tool.id}">${escapeHtml(tool.mark)}</div><div><p class="eyebrow">LOCAL UTILITY / ${String(tools.findIndex((item) => item.id === tool.id) + 1).padStart(2, "0")}</p><h1>${escapeHtml(tool.name)}</h1><p>${escapeHtml(tool.description)}</p></div></div><div class="tool-panel" id="tool-panel">${renderToolContent(tool.id)}</div></section>`;
+  return `<section class="tool-view"><div class="tool-crumb"><button class="back-button" data-nav="home">返回工具首页</button><span>/</span><span>${escapeHtml(tool.category)}</span></div><div class="tool-heading"><div class="tool-heading-mark mark-${tool.id}">${escapeHtml(tool.mark)}</div><div><p class="eyebrow">LOCAL UTILITY / ${String(tools.findIndex((item) => item.id === tool.id) + 1).padStart(2, "0")}</p><h1>${escapeHtml(tool.name)}</h1><p>${escapeHtml(tool.description)}</p></div></div><div class="tool-panel" id="tool-panel">${renderToolContent(tool.id)}</div></section>`;
 }
 
 function renderToolContent(id: ToolId): string {
@@ -258,7 +232,7 @@ function renderSafetyResult(result: SafetyResult): string {
   ];
   const nameSource = result.nameSource === "Wikidata" ? "Wikidata 中文名称映射" : "PubChem 名称/CAS 匹配";
   const details = result.safetySections.map((section) => `<article class="safety-detail-card"><h4>${escapeHtml(section.title)}</h4><p>${escapeHtml(section.content)}</p></article>`).join("");
-  return `<div class="safety-card"><div class="safety-card-heading"><div><p class="eyebrow">PUBCHEM / CID ${result.cid}</p><h2>${escapeHtml(result.title)}</h2><p class="safety-query">查询：${escapeHtml(result.query)} · ${nameSource}</p></div></div><div class="safety-meta"><div><small>IUPAC 名称</small><strong>${escapeHtml(result.iupacName)}</strong></div><div><small>分子式</small><strong>${escapeHtml(result.formula)}</strong></div><div><small>相对分子质量</small><strong>${escapeHtml(result.molecularWeight)}</strong></div></div><div class="safety-summary"><table><colgroup><col class="signal-column"><col class="hazard-column"><col></colgroup><thead><tr><th>信号词</th><th>Primary Hazards</th><th>GHS 危害说明</th></tr></thead><tbody><tr><td>${escapeHtml(result.signal)}</td><td><div class="safety-primary-hazards">${result.pictograms.map((pictogram) => `<span>${escapeHtml(pictogram)}</span>`).join("") || "<span>未提供</span>"}</div></td><td>${escapeHtml(result.hazards)}</td></tr></tbody></table></div><div class="safety-details"><div class="safety-details-heading"><h3>危害与安全信息</h3><p>以下分段来自 PubChem 的 Safety and Hazards 记录；不同化学品可提供不同项目，内容仅供安全预判，不能替代具体产品 SDS。</p></div><div class="safety-detail-grid">${details || "<p class=\"safety-detail-empty\">PubChem 暂未提供更多分段安全信息，请打开完整安全记录查看。</p>"}</div></div><div class="safety-links"><strong>官方数据库</strong>${links.map(([label, href]) => `<a href="${href}" target="_blank" rel="noreferrer">${label} ↗</a>`).join("")}</div><div class="safety-footer">查询时间：${escapeHtml(formatLocalDate(new Date(result.fetchedAt)))} · 仅供参考，不替代供应商针对具体产品、浓度和地区法规提供的 SDS。</div></div>`;
+  return `<div class="safety-card"><div class="safety-card-heading"><div><p class="eyebrow">PUBCHEM / CID ${result.cid}</p><h2>${escapeHtml(result.title)}</h2><p class="safety-query">查询：${escapeHtml(result.query)} · ${nameSource}</p></div></div><div class="safety-meta"><div><small>IUPAC 名称</small><strong>${escapeHtml(result.iupacName)}</strong></div><div><small>分子式</small><strong>${escapeHtml(result.formula)}</strong></div><div><small>相对分子质量</small><strong>${escapeHtml(result.molecularWeight)}</strong></div></div><div class="safety-summary"><table><colgroup><col class="signal-column"><col class="hazard-column"><col></colgroup><thead><tr><th>信号词</th><th>Primary Hazards</th><th>GHS 危害说明</th></tr></thead><tbody><tr><td>${escapeHtml(result.signal)}</td><td><div class="safety-primary-hazards">${result.pictograms.map((pictogram) => `<span>${escapeHtml(pictogram)}</span>`).join("") || "<span>未提供</span>"}</div></td><td>${escapeHtml(result.hazards)}</td></tr></tbody></table></div><div class="safety-details"><div class="safety-details-heading"><h3>危害与安全信息</h3><p>以下分段来自 PubChem 的 Safety and Hazards 记录；不同化学品可提供不同项目，内容仅供安全预判，不能替代具体产品 SDS。</p></div><div class="safety-detail-grid">${details || "<p class=\"safety-detail-empty\">PubChem 暂未提供更多分段安全信息，请打开完整安全记录查看。</p>"}</div></div><div class="safety-links"><strong>官方数据库</strong>${links.map(([label, href]) => `<a href="${href}" target="_blank" rel="noreferrer">${label}</a>`).join("")}</div><div class="safety-footer">查询时间：${escapeHtml(formatLocalDate(new Date(result.fetchedAt)))} · 仅供参考，不替代供应商针对具体产品、浓度和地区法规提供的 SDS。</div></div>`;
 }
 
 function bindSafety(): void {
@@ -376,23 +350,21 @@ function bindTool(id: ToolId): void {
 function renderApp(): void {
   const raw = window.location.hash.slice(1) as ToolId | "home";
   const active = tools.some((tool) => tool.id === raw) ? raw as ToolId : "home";
-  setTheme(state.theme);
+  disposeDashboardWidgets();
   appRoot.innerHTML = `${renderHeader()}<div class="app-layout">${renderSidebar(active)}<main>${active === "home" ? renderHome() : renderToolShell(getTool(active))}</main></div><footer>日常工作工具箱 · 无需登录 · 本地优先 <span>v1.0</span></footer>`;
-  document.querySelector<HTMLSelectElement>("#theme-select")?.addEventListener("change", (event) => setTheme((event.target as HTMLSelectElement).value as Theme));
-  document.querySelectorAll<HTMLElement>("[data-nav]").forEach((element) => element.addEventListener("click", () => { const nav = element.dataset.nav; state.homeMode = nav === "favorites" ? "favorites" : nav === "recent" ? "recent" : "all"; state.query = ""; state.category = "全部"; window.location.hash = "home"; renderApp(); }));
-  document.querySelectorAll<HTMLElement>("[data-category]").forEach((element) => element.addEventListener("click", () => { state.category = element.dataset.category ?? "全部"; state.homeMode = "all"; window.location.hash = "home"; renderApp(); }));
-  document.querySelectorAll<HTMLElement>("[data-favorite]").forEach((element) => element.addEventListener("click", (event) => { event.stopPropagation(); const id = element.dataset.favorite as ToolId; if (favoriteIds.has(id)) favoriteIds.delete(id); else favoriteIds.add(id); saveFavorites(); renderApp(); }));
-  document.querySelectorAll<HTMLElement>("[data-open-tool]").forEach((element) => { const open = () => { const id = element.dataset.openTool as ToolId; recordRecent(id); window.location.hash = id; renderApp(); }; element.addEventListener("click", open); element.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } }); });
-  document.querySelector("[data-clear-filters]")?.addEventListener("click", () => { state.query = ""; state.category = "全部"; state.homeMode = "all"; renderApp(); });
+  document.querySelectorAll<HTMLElement>("[data-nav=\"home\"]").forEach((element) => element.addEventListener("click", () => { state.query = ""; state.category = "全部"; window.location.hash = "home"; renderApp(); }));
+  document.querySelectorAll<HTMLElement>("[data-category]").forEach((element) => element.addEventListener("click", () => { state.category = element.dataset.category ?? "全部"; window.location.hash = "home"; renderApp(); }));
+  document.querySelectorAll<HTMLElement>("[data-open-tool]").forEach((element) => { const open = () => { const id = element.dataset.openTool as ToolId; window.location.hash = id; renderApp(); }; element.addEventListener("click", open); element.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } }); });
+  document.querySelector("[data-clear-filters]")?.addEventListener("click", () => { state.query = ""; state.category = "全部"; renderApp(); });
   const search = document.querySelector<HTMLInputElement>("#tool-search"); search?.addEventListener("input", () => { state.query = search.value; const grid = document.querySelector<HTMLElement>("#tool-grid"); const count = document.querySelector<HTMLElement>(".result-count"); if (grid) grid.innerHTML = renderToolCards(); if (count) count.textContent = `${filteredTools().length} / ${tools.length}`; bindHomeCards(); }); search?.addEventListener("keydown", (event) => { if (event.key === "/") event.preventDefault(); });
   bindHomeCards();
   bindShortcuts();
+  if (active === "home") bindDashboardWidgets();
   if (active !== "home") bindTool(active);
 }
 
 function bindHomeCards(): void {
-  document.querySelectorAll<HTMLElement>("[data-open-tool]").forEach((element) => { const open = () => { const id = element.dataset.openTool as ToolId; recordRecent(id); window.location.hash = id; renderApp(); }; element.onclick = open; element.onkeydown = (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } }; });
-  document.querySelectorAll<HTMLElement>("[data-favorite]").forEach((element) => { element.onclick = (event) => { event.stopPropagation(); const id = element.dataset.favorite as ToolId; if (favoriteIds.has(id)) favoriteIds.delete(id); else favoriteIds.add(id); saveFavorites(); renderApp(); }; });
+  document.querySelectorAll<HTMLElement>("[data-open-tool]").forEach((element) => { const open = () => { const id = element.dataset.openTool as ToolId; window.location.hash = id; renderApp(); }; element.onclick = open; element.onkeydown = (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } }; });
 }
 
 function bindShortcuts(): void {
