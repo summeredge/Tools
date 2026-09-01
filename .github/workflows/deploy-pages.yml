@@ -30,6 +30,8 @@ jobs:
       - name: Test
         run: npm test
       - name: Build
+        env:
+            VITE_AMAP_WEATHER_KEY: ${{ secrets.AMAP_WEATHER_KEY }}
         run: npm run build
       - name: Configure Pages
         uses: actions/configure-pages@v5
