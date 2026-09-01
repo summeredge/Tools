@@ -94,12 +94,6 @@ function downloadText(filename: string, content: string, mimeType: string): void
   window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 }
 
-function renderHeader(): string {
-  return `<header class="topbar">
-    <button class="brand" data-nav="home" aria-label="回到工具首页"><span class="brand-mark">▦</span><span><strong>日常工作工具箱</strong><small>清晰、快速、默认留在本机</small></span></button>
-  </header>`;
-}
-
 function renderSidebar(active: ToolId | "home"): string {
   const isHome = active === "home";
   return `<aside class="sidebar" aria-label="工具导航">
@@ -139,9 +133,8 @@ function renderShortcuts(): string {
     </div>`;
   }).join("");
   return `<section class="shortcuts-section" aria-label="网址快捷键">
-    <div class="shortcuts-heading"><div><p class="eyebrow">QUICK LINKS</p></div><span class="result-count">${shortcuts.length} 个</span></div>
+    <div class="shortcuts-heading"><div class="shortcuts-title"><p class="eyebrow">QUICK LINKS</p><button class="shortcut-add-button" type="button" data-add-shortcut aria-haspopup="dialog" aria-label="添加网址快捷键" title="添加网址快捷键"><span aria-hidden="true">＋</span></button></div><span class="result-count">${shortcuts.length} 个</span></div>
     ${cards ? `<div class="shortcut-grid">${cards}</div>` : `<p class="shortcut-empty">把常用网址放在这里，点击图标即可快速打开。</p>`}
-    <button class="shortcut-add-button" type="button" data-add-shortcut aria-haspopup="dialog" aria-label="添加网址快捷键" title="添加网址快捷键"><span aria-hidden="true">＋</span></button>
     <div class="shortcut-dialog-backdrop hidden" data-shortcut-dialog role="dialog" aria-modal="true" aria-labelledby="shortcut-dialog-title" aria-hidden="true">
       <div class="shortcut-dialog-card">
         <div class="shortcut-dialog-heading"><div><p class="eyebrow">QUICK LINK</p><h3 id="shortcut-dialog-title">添加网址快捷键</h3></div><button class="shortcut-dialog-close" type="button" data-shortcut-close aria-label="关闭">×</button></div>
@@ -159,11 +152,11 @@ function renderShortcuts(): string {
 
 function renderHome(): string {
   return `<section class="home-view">
+    ${renderShortcuts()}
     ${renderDashboardWidgets()}
     <div class="home-toolbar"><label class="search-box"><span>⌕</span><input id="tool-search" type="search" value="${escapeHtml(state.query)}" placeholder="搜索工具名称或关键词…" autocomplete="off"><kbd>/</kbd></label><div class="category-chips" aria-label="工具分类">${categories.map((category) => `<button class="chip ${state.category === category ? "active" : ""}" data-category="${escapeHtml(category)}">${escapeHtml(category)}</button>`).join("")}</div></div>
     <div class="section-heading"><div><p class="eyebrow">TOOL INDEX</p><h2>全部工具</h2></div><span class="result-count">${filteredTools().length} / ${tools.length}</span></div>
     <div class="tool-grid" id="tool-grid">${renderToolCards()}</div>
-    ${renderShortcuts()}
   </section>`;
 }
 
@@ -351,7 +344,7 @@ function renderApp(): void {
   const raw = window.location.hash.slice(1) as ToolId | "home";
   const active = tools.some((tool) => tool.id === raw) ? raw as ToolId : "home";
   disposeDashboardWidgets();
-  appRoot.innerHTML = `${renderHeader()}<div class="app-layout">${renderSidebar(active)}<main>${active === "home" ? renderHome() : renderToolShell(getTool(active))}</main></div><footer>日常工作工具箱 · 无需登录 · 本地优先 <span>v1.0</span></footer>`;
+  appRoot.innerHTML = `<div class="app-layout">${renderSidebar(active)}<main>${active === "home" ? renderHome() : renderToolShell(getTool(active))}</main></div><footer>日常工作工具箱 · 无需登录 · 本地优先 <span>v1.0</span></footer>`;
   document.querySelectorAll<HTMLElement>("[data-nav=\"home\"]").forEach((element) => element.addEventListener("click", () => { state.query = ""; state.category = "全部"; window.location.hash = "home"; renderApp(); }));
   document.querySelectorAll<HTMLElement>("[data-category]").forEach((element) => element.addEventListener("click", () => { state.category = element.dataset.category ?? "全部"; window.location.hash = "home"; renderApp(); }));
   document.querySelectorAll<HTMLElement>("[data-open-tool]").forEach((element) => { const open = () => { const id = element.dataset.openTool as ToolId; window.location.hash = id; renderApp(); }; element.addEventListener("click", open); element.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } }); });

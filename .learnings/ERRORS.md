@@ -25,3 +25,32 @@ Could not resolve dependency: peer vite@"^8.0.0" from @openai/sites-vite-plugin@
 - See Also: none
 
 ---
+
+## [ERR-20260901-001] 知乎热榜接口跨域响应头重复
+
+**Priority**: medium
+**Status**: resolved
+**Area**: tools
+
+### 摘要
+知乎热榜接口返回重复的 `Access-Control-Allow-Origin` 值，Node 请求可读，但浏览器以 `MultipleAllowOriginValues` 拒绝跨域响应。
+
+### 错误信息
+```text
+net::ERR_FAILED
+corsError: MultipleAllowOriginValues
+failedParameter: *, *
+```
+
+### 上下文
+- RSS 默认源改为知乎热榜接口后，在本地 Vite 页面中加载失败。
+- 通过浏览器网络事件确认失败发生在 CORS 校验，而不是 JSON 内容解析。
+
+### 建议修复
+本地开发使用 Vite 同源代理转发接口，并在前端兼容接口的 JSON 热榜列表；不要只用 Node `fetch` 结果判断浏览器可用性。
+
+### 元数据
+- Reproducible: yes
+- See Also: none
+
+---
