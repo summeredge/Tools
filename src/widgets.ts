@@ -4,6 +4,7 @@ import { fetchWeatherForecast, getAmapWeatherKey, renderWeatherForecast, weather
 type Feed = { name: string; url: string };
 type RssItem = { title: string; url: string; source: string; timestamp: number };
 const rssStorageKey = "workbench:rss-feeds";
+const weatherStorageKey = "workbench:weather-city";
 const legacyDefaultFeedUrls = new Set(["https://hnrss.org/frontpage", "https://rsshub.app/zhihu/hot", "https://rsshub.app/zhihu/hotlist", "https://tgmeng.com/community/zhihu/rss.xml", "https://api.xunjinlu.fun/api/rebang/zhihu.php"]);
 const defaultFeedUrl = "https://api.xunjinlu.fun/api/rebang/zhihu.php";
 const defaultFeeds: Feed[] = [{ name: "知乎热榜", url: defaultFeedUrl }];
@@ -44,6 +45,14 @@ function readFeeds(): Feed[] {
 
 function saveFeeds(): void {
   try { getStorage()?.setItem(rssStorageKey, JSON.stringify(rssFeeds)); } catch { /* 本地存储不可用时继续使用当前页面状态 */ }
+}
+
+function readWeatherCity(): string {
+  try { return getStorage()?.getItem(weatherStorageKey)?.trim() ?? ""; } catch { return ""; }
+}
+
+function saveWeatherCity(city: string): void {
+  try { getStorage()?.setItem(weatherStorageKey, city.trim()); } catch { /* 本地存储不可用时继续使用当前页面状态 */ }
 }
 
 async function requestText(url: string): Promise<string> {
@@ -157,6 +166,7 @@ async function refreshWeather(root: HTMLElement, city: string): Promise<void> {
   forecast.innerHTML = "";
   try {
     const data = await fetchWeatherForecast(city);
+    saveWeatherCity(city);
     status.textContent = data.city;
     forecast.innerHTML = renderWeatherForecast(data);
   } catch (error) {
@@ -217,7 +227,10 @@ export function bindDashboardWidgets(): void {
   const runWeather = (): void => { void refreshWeather(root, weatherInput?.value ?? ""); };
   root.querySelector<HTMLButtonElement>("[data-weather-refresh]")?.addEventListener("click", runWeather);
   weatherForm?.addEventListener("submit", (event) => { event.preventDefault(); runWeather(); });
+  const savedWeatherCity = readWeatherCity();
+  if (weatherInput && savedWeatherCity) weatherInput.value = savedWeatherCity;
   if (!getAmapWeatherKey()) root.querySelector<HTMLElement>("[data-weather-state]")!.textContent = "未配置天气服务，请设置高德 API Key";
+  else if (savedWeatherCity) void refreshWeather(root, savedWeatherCity);
   root.querySelector<HTMLButtonElement>("[data-rss-refresh]")?.addEventListener("click", () => void refreshRss(root));
   const toggle = root.querySelector<HTMLButtonElement>("[data-rss-toggle]");
   const form = root.querySelector<HTMLFormElement>("[data-rss-form]");
