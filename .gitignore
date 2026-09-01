@@ -4,3 +4,4 @@ dist/
 .vite/
 coverage/
 *.local
+public/data/zhihu-hot.json

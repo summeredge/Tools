@@ -1,9 +1,7 @@
-import { sites } from "@openai/sites-vite-plugin";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   base: "./",
-  plugins: [sites()],
   server: {
     proxy: {
       "/api/zhihu-hot": {

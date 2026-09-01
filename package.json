@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build && node scripts/create-worker.mjs",
+    "prebuild": "node scripts/fetch-zhihu-hot.mjs",
+    "build": "tsc --noEmit && vite build",
     "test": "vitest run",
     "lint": "tsc --noEmit"
   },
@@ -15,7 +16,6 @@
     "marked": "15.0.12"
   },
   "devDependencies": {
-    "@openai/sites-vite-plugin": "^0.2.0",
     "@types/jsdom": "21.1.7",
     "@types/node": "22.15.21",
     "jsdom": "26.1.0",

@@ -4,7 +4,7 @@ import { fetchWeatherForecast, getAmapWeatherKey, renderWeatherForecast, weather
 type Feed = { name: string; url: string };
 type RssItem = { title: string; url: string; source: string; timestamp: number };
 const rssStorageKey = "workbench:rss-feeds";
-const legacyDefaultFeedUrls = new Set(["https://hnrss.org/frontpage", "https://rsshub.app/zhihu/hot", "https://rsshub.app/zhihu/hotlist", "https://tgmeng.com/community/zhihu/rss.xml"]);
+const legacyDefaultFeedUrls = new Set(["https://hnrss.org/frontpage", "https://rsshub.app/zhihu/hot", "https://rsshub.app/zhihu/hotlist", "https://tgmeng.com/community/zhihu/rss.xml", "https://api.xunjinlu.fun/api/rebang/zhihu.php"]);
 const defaultFeedUrl = "https://api.xunjinlu.fun/api/rebang/zhihu.php";
 const defaultFeeds: Feed[] = [{ name: "知乎热榜", url: defaultFeedUrl }];
 let rssFeeds = readFeeds();
@@ -50,8 +50,7 @@ async function requestText(url: string): Promise<string> {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 10000);
   try {
-    const requestUrl = import.meta.env.DEV && url === defaultFeedUrl ? "/api/zhihu-hot" : url;
-    const response = await fetch(requestUrl, { signal: controller.signal, cache: "no-store" });
+    const response = await fetch(url, { signal: controller.signal, cache: "no-store" });
     if (!response.ok) throw new Error("request failed");
     return await response.text();
   } finally {
@@ -96,7 +95,9 @@ export function parseFeed(feed: Feed, text: string): RssItem[] {
 }
 
 async function loadFeed(feed: Feed): Promise<RssItem[]> {
-  const urls = [feed.url, "https://api.allorigins.win/raw?url=" + encodeURIComponent(feed.url)];
+  const urls = feed.url === defaultFeedUrl
+    ? [import.meta.env.DEV ? "/api/zhihu-hot" : "./data/zhihu-hot.json"]
+    : [feed.url, "https://api.allorigins.win/raw?url=" + encodeURIComponent(feed.url)];
   let lastError: unknown;
   for (const url of urls) {
     try {
