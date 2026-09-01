@@ -1,18 +1,18 @@
 import { access, mkdir, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
 import { dirname, resolve } from "node:path";
+import { promisify } from "node:util";
 
 const sourceUrl = "https://api.xunjinlu.fun/api/rebang/zhihu.php";
 const outputPath = resolve("public", "data", "zhihu-hot.json");
-const controller = new AbortController();
-const timeout = setTimeout(() => controller.abort(), 10000);
+const runFile = promisify(execFile);
 
 try {
-  const response = await fetch(sourceUrl, {
-    headers: { accept: "application/json" },
-    signal: controller.signal,
-  });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  const payload = await response.json();
+  const { stdout } = await runFile(process.platform === "win32" ? "curl.exe" : "curl", [
+    "--fail", "--location", "--silent", "--show-error", "--retry", "3", "--retry-delay", "1",
+    "--connect-timeout", "10", "--max-time", "30", "--header", "Accept: application/json", sourceUrl,
+  ], { maxBuffer: 1024 * 1024 });
+  const payload = JSON.parse(stdout);
   const list = payload?.data?.list;
   if (!Array.isArray(list) || !list.some((item) => item && typeof item.title === "string" && typeof item.url === "string")) {
     throw new Error("知乎热榜响应格式无效");
@@ -27,6 +27,4 @@ try {
   } catch {
     throw error;
   }
-} finally {
-  clearTimeout(timeout);
 }
